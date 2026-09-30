@@ -80,8 +80,11 @@ python check.py ./out
 ```
 
 Lädt jede Datei einzeln mit pypdf und meldet: defekte/leere PDFs, fehlendes Textlayer,
-Dokumente ohne Firmenbezug, Seitenverteilung, Gesamtgröße, Ordner- und Namensstruktur,
-Abweichungen zwischen Index und Platte.
+Dokumente ohne Adressat, Seitenverteilung, Gesamtgröße, Ordner- und Namensstruktur,
+Abweichungen zwischen Index und Platte. Funktioniert für Jahr/Monat- und flache Ablage.
+Exit-Code 1 bei Befunden — damit in CI oder Skripten auswertbar.
+
+Getestet mit Python 3.12, 3.13 und 3.14 (siehe GitHub-Actions-Lauf).
 
 ## Anpassen
 

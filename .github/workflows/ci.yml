@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Generierung und Prüfung (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements.txt
+
+      - name: 300 PDFs erzeugen (Jahr/Monat-Ablage)
+        run: python gen.py --out out --count 300 --seed 42 --jobs 2 --quiet
+
+      - name: Bestand prüfen (Exit-Code 1 bei Befunden)
+        run: python check.py out
+
+      - name: 25 PDFs flach erzeugen und prüfen
+        run: |
+          python gen.py --out flat --count 25 --seed 7 --jobs 2 --flat --quiet
+          python check.py flat
+
+      - name: Beispieldateien im Repo prüfen
+        run: python check.py examples
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: beispiel-pdfs-${{ matrix.python }}
+          path: out/
+          retention-days: 7
