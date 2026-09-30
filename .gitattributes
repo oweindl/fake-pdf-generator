@@ -1,0 +1,10 @@
+# Zeilenenden: Code LF, Binärdateien unangetastet lassen
+* text=auto
+*.py text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.pdf binary
+*.PDF binary
+*.Pdf binary
+*.csv text eol=lf
