@@ -12,6 +12,19 @@ Zahlenwerte geprüft, Pfade auf Steuerzeichen getestet.
 from __future__ import annotations
 
 import argparse
+
+def _utf8_ausgabe():
+    """Kindprozesse schreiben in eine Pipe: ohne das scheitern Umlaute und Pfeile an cp1252."""
+    import sys as _sys
+    for strom in (_sys.stdout, _sys.stderr):
+        try:
+            strom.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
+
+
+_utf8_ausgabe()
+
 import json
 import os
 import shutil
@@ -231,8 +244,10 @@ def starte(aktion, parameter):
         zustand["argv"] = argv
         zustand["zeilen"].append(f"$ {' '.join(argv)}")
         zustand["zeilen"].append(f"# {beschreibung}")
+        # PYTHONIOENCODING erzwingt UTF-8 auch in Kindprozessen (Windows-Pipe wäre sonst cp1252)
+        umgebung = {**os.environ, "PYTHONIOENCODING": "utf-8"}
         prozess = subprocess.Popen(argv, cwd=HIER, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   text=True, encoding="utf-8", errors="replace", bufsize=1)
+                                   text=True, encoding="utf-8", errors="replace", bufsize=1, env=umgebung)
         zustand["prozess"] = prozess
     threading.Thread(target=leser, args=(prozess,), daemon=True).start()
     return beschreibung

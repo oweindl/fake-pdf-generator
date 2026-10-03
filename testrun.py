@@ -13,6 +13,19 @@ Exit-Code 1, sobald ein Schritt fehlschlägt.
 from __future__ import annotations
 
 import argparse
+
+def _utf8_ausgabe():
+    """Kindprozesse schreiben in eine Pipe: ohne das scheitern Umlaute und Pfeile an cp1252."""
+    import sys as _sys
+    for strom in (_sys.stdout, _sys.stderr):
+        try:
+            strom.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
+
+
+_utf8_ausgabe()
+
 import csv
 import glob
 import os
@@ -37,7 +50,8 @@ ergebnisse = []
 def lauf(*args, erwarte=0):
     """Führt ein Kommando aus und gibt (exitcode, ausgabe) zurück."""
     p = subprocess.run([PY, *args], cwd=HIER, capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=1800)
+                       errors="replace", timeout=1800,
+                       env={**os.environ, "PYTHONIOENCODING": "utf-8"})
     return p.returncode, (p.stdout or "") + (p.stderr or "")
 
 

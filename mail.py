@@ -16,6 +16,19 @@ Aufruf:
 from __future__ import annotations
 
 import argparse
+
+def _utf8_ausgabe():
+    """Kindprozesse schreiben in eine Pipe: ohne das scheitern Umlaute und Pfeile an cp1252."""
+    import sys as _sys
+    for strom in (_sys.stdout, _sys.stderr):
+        try:
+            strom.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
+
+
+_utf8_ausgabe()
+
 import io
 import os
 import random

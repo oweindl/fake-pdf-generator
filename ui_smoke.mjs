@@ -151,7 +151,8 @@ return (async () => {
 })().catch((e) => pruefe('Testablauf', false, 'Ausnahme: ' + e.message));
 `;
 
-const server = spawn(PY, ['panel.py', '--no-browser', '--port', String(PORT)], { stdio: 'ignore' });
+const server = spawn(PY, ['panel.py', '--no-browser', '--port', String(PORT)],
+  { stdio: 'ignore', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
 try {
   let bereit = false;
   for (let i = 0; i < 40 && !bereit; i++) {
