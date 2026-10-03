@@ -84,6 +84,30 @@ python testrun.py --live          # schickt wirklich eine Mail an MAIL_TO
 Exit-Code 1, sobald ein Schritt fehlschlägt — in CI und Skripten auswertbar. In
 `.github/workflows/ci.yml` läuft er bei jedem Push auf Python 3.12, 3.13 und 3.14.
 
+## Leitstand: Oberfläche für alles
+
+```bash
+python panel.py                    # startet http://127.0.0.1:8765 und öffnet den Browser
+python panel.py --port 9000 --no-browser
+python panel.py --selftest         # Smoke-Test ohne Browser (läuft in der CI)
+node ui_smoke.mjs                  # Oberflächentest: DOM-Shim + echter Server, prüft jeden Knopf
+```
+
+Kleine lokale Oberfläche mit Formularen, Live-Ausgabe, Stop-Knopf und Liste der letzten Läufe:
+
+| Bereich | Aktionen |
+|---|---|
+| PDFs erzeugen | Zielordner, Anzahl, Seed, Prozesse, Ablage (Jahr/Monat oder flach), Datum (2023–2026 oder heute) — plus „Bestand prüfen“ |
+| Mails senden | Anzahl, Seed, Transport (file/sink/smtp), Datum im Kopf, Ablage, Dokument auf heute |
+| Mailserver & Postfach | Anmeldung prüfen, Empfängeradresse prüfen, neueste Mails ansehen |
+| Testlauf & Testserver | kompletter Testlauf (optional mit echter Testmail), SMTP-Testserver starten |
+
+Der Server bindet nur an `127.0.0.1`, braucht keine Anmeldung und führt **ausschließlich fest
+verdrahtete Kommandos** aus: Aktionen werden als Argumentlisten zusammengesetzt (keine Shell),
+Zahlen auf erlaubte Bereiche geprüft, Pfade auf Steuerzeichen. Feldwerte merkt sich der Browser
+(`localStorage`). `ui_smoke.mjs` fährt jeden Knopf an und lässt einen echten Durchlauf über die
+Oberfläche laufen — so fallen Formularfehler auf, ohne dass jemand klicken muss.
+
 ## Installation
 
 ```bash

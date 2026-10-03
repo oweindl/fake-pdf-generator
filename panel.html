@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Fake-PDF-Leitstand</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #14171c; --card: #1c2027; --card2: #222833; --line: #2e3540;
+    --text: #e7ecf3; --muted: #98a3b3; --accent: #4d9de0; --ok: #46b17b;
+    --warn: #d9a03c; --err: #d9584d; --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 "Segoe UI", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+           padding: 16px 22px; border-bottom: 1px solid var(--line); background: #171b21;
+           position: sticky; top: 0; z-index: 5; }
+  h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .pill { padding: 3px 11px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line);
+          background: var(--card2); color: var(--muted); }
+  .pill.laeuft { color: #10212e; background: var(--accent); border-color: var(--accent); }
+  .pill.ok { color: #0e2418; background: var(--ok); border-color: var(--ok); }
+  .pill.fehler { color: #2a100e; background: var(--err); border-color: var(--err); }
+  main { padding: 18px 22px 40px; display: grid; gap: 18px; grid-template-columns: 1fr 1fr;
+         max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+            padding: 14px 16px 16px; }
+  section.wide { grid-column: 1 / -1; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+       margin: 0 0 12px; font-weight: 600; }
+  .felder { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 14px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  input, select { width: 100%; padding: 7px 9px; border-radius: 6px; border: 1px solid var(--line);
+                  background: #12151a; color: var(--text); font: inherit; font-size: 13px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .knopfreihe { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 13px; }
+  button { padding: 8px 16px; border-radius: 7px; border: 1px solid var(--line); background: var(--card2);
+           color: var(--text); font: inherit; font-weight: 500; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.haupt { background: var(--accent); border-color: var(--accent); color: #0d1a26; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .hinweis { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+  .fehler { color: var(--err); }
+  .ok { color: var(--ok); }
+  pre.konsole { margin: 0; background: #0f1216; border: 1px solid var(--line); border-radius: 8px;
+                padding: 12px; height: 340px; overflow: auto; font-family: var(--mono); font-size: 12.5px;
+                white-space: pre-wrap; word-break: break-word; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  code { font-family: var(--mono); font-size: 12px; color: #cfe3f5; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12.5px; }
+  .kv div:nth-child(odd) { color: var(--muted); }
+  .schalter { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+  .schalter input { width: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fake-PDF-Leitstand <span id="kopf-repo"></span></h1>
+  <span class="pill" id="status-pill">bereit</span>
+  <span class="hinweis" id="status-text"></span>
+  <div style="flex:1"></div>
+  <button id="btn-stop" disabled>Stoppen</button>
+  <button id="btn-open">Zielordner öffnen</button>
+</header>
+
+<main>
+  <section class="wide">
+    <h2>Umgebung</h2>
+    <div class="kv" id="umgebung"></div>
+  </section>
+
+  <section>
+    <h2>PDFs erzeugen</h2>
+    <div class="felder">
+      <div><label for="d-ordner">Zielordner</label><input id="d-ordner" placeholder="D:/pdf-temp"></div>
+      <div><label for="d-count">Anzahl</label><input id="d-count" type="number" value="100"></div>
+      <div><label for="d-seed">Seed</label><input id="d-seed" type="number" value="20260927"></div>
+      <div><label for="d-jobs">Prozesse</label><input id="d-jobs" type="number" value="8"></div>
+      <div><label for="d-layout">Ablage</label>
+        <select id="d-layout"><option value="monat">Jahr/Monat</option><option value="flach">flach</option></select></div>
+      <div><label for="d-datum">Dokumentdatum</label>
+        <select id="d-datum"><option value="zeitraum">2023–2026</option><option value="heute">heute</option></select></div>
+    </div>
+    <div class="knopfreihe">
+      <button class="haupt" data-aktion="dateien" data-form="d-">Erzeugen</button>
+      <button data-aktion="pruefen" data-form="d-" data-nur="ordner">Bestand prüfen</button>
+      <span class="hinweis" id="d-ziel"></span>
+    </div>
+    <div class="hinweis" id="d-fehler"></div>
+  </section>
+
+  <section>
+    <h2>Mails senden</h2>
+    <div class="felder">
+      <div><label for="m-count">Anzahl</label><input id="m-count" type="number" value="5"></div>
+      <div><label for="m-seed">Seed</label><input id="m-seed" type="number" value="20260927"></div>
+      <div><label for="m-transport">Transport</label>
+        <select id="m-transport">
+          <option value="file">file — .eml ablegen (kein Konto)</option>
+          <option value="sink">sink — lokaler SMTP-Server</option>
+          <option value="smtp">smtp — echt senden</option>
+        </select></div>
+      <div><label for="m-datum">Datum im Kopf</label>
+        <select id="m-datum"><option value="jetzt">aktuell</option><option value="dokument">wie Dokument</option></select></div>
+      <div><label for="m-mailordner">Ablage (.eml)</label><input id="m-mailordner" placeholder="mails"></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="m-dokument-heute"><label for="m-dokument-heute"
+          style="margin:0">Dokument im Anhang auf heute</label></div></div>
+    </div>
+    <div class="knopfreihe">
+      <button class="haupt" data-aktion="mails" data-form="m-">Senden</button>
+      <span class="hinweis" id="m-ziel"></span>
+    </div>
+    <div class="hinweis" id="m-fehler"></div>
+  </section>
+
+  <section>
+    <h2>Mailserver & Postfach</h2>
+    <div class="felder">
+      <div><label for="p-was">Prüfung</label>
+        <select id="p-was">
+          <option value="anmeldung">Anmeldung (sendet nichts)</option>
+          <option value="empfaenger">Empfängeradresse (sendet nichts)</option>
+        </select></div>
+      <div><label for="p-anzahl">Postfach: neueste N</label><input id="p-anzahl" type="number" value="10"></div>
+    </div>
+    <div class="knopfreihe">
+      <button data-aktion="mail_check" data-form="p-">Prüfen</button>
+      <button data-aktion="postfach" data-form="p-">Postfach ansehen</button>
+    </div>
+    <div class="hinweis" id="p-fehler"></div>
+  </section>
+
+  <section>
+    <h2>Testlauf &amp; Testserver</h2>
+    <div class="felder">
+      <div><label for="t-ordner">Arbeitsordner (leer = Temp)</label><input id="t-ordner" placeholder="leer lassen"></div>
+      <div><label for="t-sink">Sink-Laufzeit in Sekunden</label><input id="t-sink" type="number" value="300"></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="t-live"><label for="t-live" style="margin:0">echte Testmail</label></div></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="t-keep"><label for="t-keep" style="margin:0">Arbeitsordner behalten</label></div></div>
+    </div>
+    <div class="knopfreihe">
+      <button class="haupt" data-aktion="testlauf" data-form="t-">Testlauf starten</button>
+      <button data-aktion="sink" data-form="t-" data-map="sink">SMTP-Testserver starten</button>
+    </div>
+    <div class="hinweis" id="t-fehler"></div>
+  </section>
+
+  <section class="wide">
+    <h2>Ausgabe</h2>
+    <pre class="konsole" id="konsole">Bereit. Aktion wählen — der Verlauf erscheint hier.</pre>
+  </section>
+
+  <section class="wide">
+    <h2>Letzte Läufe</h2>
+    <table><thead><tr><th>Zeit</th><th>Aktion</th><th>Ergebnis</th><th>Dauer</th><th>Schlusszeile</th></tr></thead>
+      <tbody id="historie"><tr><td colspan="5" class="hinweis">noch keine Läufe</td></tr></tbody></table>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum",
+                "m-count","m-seed","m-transport","m-datum","m-mailordner","m-dokument-heute",
+                "p-was","p-anzahl","t-ordner","t-sink","t-live","t-keep"];
+let laeuft = false;
+
+FELDER.forEach((id) => {
+  const el = $(id);
+  const gespeichert = localStorage.getItem("leitstand." + id);
+  if (gespeichert !== null) { if (el.type === "checkbox") el.checked = gespeichert === "1"; else el.value = gespeichert; }
+  const art = el.type === "checkbox" ? "change" : "input";
+  el.addEventListener(art, () => localStorage.setItem("leitstand." + id, el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value));
+});
+
+function zeige(id, text, klasse) {
+  const el = $(id);
+  el.textContent = text || "";
+  el.className = "hinweis " + (klasse || "");
+}
+
+function parameter(aktion, formPraefix, nur) {
+  const nimm = (kurz, ziel) => $(formPraefix + kurz).value.trim();
+  if (nur === "ordner") return { ordner: nimm("ordner") };
+  if (aktion === "dateien") return {
+    ordner: nimm("ordner"), count: nimm("count"), seed: nimm("seed"), jobs: nimm("jobs"),
+    layout: nimm("layout"), datum: nimm("datum") };
+  if (aktion === "mails") return {
+    count: nimm("count"), seed: nimm("seed"), transport: nimm("transport"), datum: nimm("datum"),
+    mailordner: nimm("mailordner"), dokument_heute: $(formPraefix + "dokument-heute").checked };
+  if (aktion === "mail_check") return { was: nimm("was") };
+  if (aktion === "postfach") return { anzahl: nimm("anzahl") };
+  if (aktion === "sink") return { sekunden: $("t-sink").value.trim(),
+                                  mailordner: $("m-mailordner").value.trim() || "mails" };
+  if (aktion === "testlauf") return { ordner: nimm("ordner"), live: $(formPraefix + "live").checked,
+                                      keep: $(formPraefix + "keep").checked };
+  return {};
+}
+
+document.querySelectorAll("button[data-aktion]").forEach((knopf) => {
+  knopf.addEventListener("click", async () => {
+    const aktion = knopf.dataset.aktion, formPraefix = knopf.dataset.form;
+    const fehlerId = formPraefix + "fehler";
+    zeige(fehlerId, "");
+    try {
+      const antwort = await fetch("/api/run", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aktion, parameter: parameter(aktion, formPraefix, knopf.dataset.nur) })
+      });
+      const daten = await antwort.json();
+      if (!antwort.ok) { zeige(fehlerId, daten.fehler || "Fehler", "fehler"); return; }
+      zeige(fehlerId, "läuft: " + daten.beschreibung, "ok");
+      aktualisiere();
+    } catch (e) { zeige(fehlerId, "Server nicht erreichbar: " + e, "fehler"); }
+  });
+});
+
+$("btn-stop").addEventListener("click", async () => {
+  await fetch("/api/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  aktualisiere();
+});
+
+$("btn-open").addEventListener("click", async () => {
+  const antwort = await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ordner: $("d-ordner").value.trim() }) });
+  const daten = await antwort.json();
+  if (!antwort.ok) zeige("d-fehler", daten.fehler || "Fehler", "fehler");
+});
+
+async function umgebung() {
+  const ordner = $("d-ordner").value.trim();
+  const daten = await (await fetch("/api/config?ordner=" + encodeURIComponent(ordner))).json();
+  $("kopf-repo").textContent = daten.repo;
+  const zeilen = [["Python", daten.python], ["Repository", daten.repo],
+                  ["Zielordner", (daten.ordner.pfad || "") + (daten.ordner.existiert
+                     ? ` — ${daten.ordner.pdf} PDF, ${daten.ordner.eml} EML, ${daten.ordner.unterordner} Unterordner`
+                     : " — noch nicht angelegt")]];
+  if (daten.mail && daten.mail.werte) {
+    const w = daten.mail.werte;
+    zeilen.push(["mail.env", daten.mail.quelle || "nicht vorhanden"]);
+    if (w.MAIL_TO) zeilen.push(["Empfänger", w.MAIL_TO]);
+    if (w.SMTP_HOST) zeilen.push(["SMTP", `${w.SMTP_HOST}:${w.SMTP_PORT || ""} als ${w.SMTP_USER || ""}`]);
+    zeilen.push(["Passwort", w.SMTP_PASS ? w.SMTP_PASS : "nicht gesetzt"]);
+  }
+  $("umgebung").innerHTML = zeilen.map(([k, v]) => `<div>${k}</div><div><code>${String(v ?? "")}</code></div>`).join("");
+  $("d-ziel").textContent = daten.ordner.existiert ? `${daten.ordner.pdf} PDF im Zielordner` : "";
+  $("m-ziel").textContent = (daten.mail && daten.mail.werte && daten.mail.werte.MAIL_TO)
+    ? "Empfänger: " + daten.mail.werte.MAIL_TO : "kein Empfänger in mail.env — dann --to nötig";
+}
+
+function zeige_status(daten) {
+  const pill = $("status-pill");
+  laeuft = daten.laeuft;
+  pill.className = "pill " + (daten.laeuft ? "laeuft" : (daten.exit === null ? "" : (daten.exit === 0 ? "ok" : "fehler")));
+  pill.textContent = daten.laeuft ? "läuft" : (daten.exit === null ? "bereit" : (daten.exit === 0 ? "fertig" : "Fehler " + daten.exit));
+  $("status-text").textContent = daten.laeuft
+    ? `Aktion ${daten.aktion} … ${daten.dauer}s` : (daten.dauer !== null ? `letzter Lauf: ${daten.dauer}s` : "");
+  $("btn-stop").disabled = !daten.laeuft;
+  document.querySelectorAll("button[data-aktion]").forEach((k) => { k.disabled = daten.laeuft; });
+
+  const konsole = $("konsole");
+  const amEnde = konsole.scrollTop + konsole.clientHeight >= konsole.scrollHeight - 30;
+  konsole.textContent = daten.zeilen.join("\n");
+  if (amEnde) konsole.scrollTop = konsole.scrollHeight;
+
+  const körper = $("historie");
+  if (!daten.historie.length) { körper.innerHTML = '<tr><td colspan="5" class="hinweis">noch keine Läufe</td></tr>'; }
+  else {
+    körper.innerHTML = daten.historie.map((h) => `<tr>
+      <td>${h.zeit}</td><td>${h.aktion}</td>
+      <td class="${h.exit === 0 ? "ok" : "fehler"}">${h.exit === 0 ? "ok" : "Exit " + h.exit}</td>
+      <td>${h.sekunden}s</td><td><code>${(h.kurz || "").replace(/</g, "&lt;")}</code></td></tr>`).join("");
+  }
+}
+
+async function aktualisiere() { zeige_status(await (await fetch("/api/status")).json()); }
+
+umgebung();
+aktualisiere();
+setInterval(aktualisiere, laeuft ? 700 : 2500);
+setInterval(umgebung, 15000);
+</script>
+</body>
+</html>

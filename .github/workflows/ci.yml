@@ -51,6 +51,12 @@ jobs:
       - name: Kompletter Testlauf über alle Betriebsarten
         run: python testrun.py
 
+      - name: Leitstand-Selbsttest des Servers
+        run: python panel.py --selftest
+
+      - name: Leitstand-Oberflächentest im DOM-Shim
+        run: node ui_smoke.mjs
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
