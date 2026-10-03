@@ -765,23 +765,31 @@ def write_pdf(path, story, ctx, typ, st, titel):
     return doc.page
 
 
-def derive(seed):
+def derive(seed, heute=False):
     """Erzeugt alle Parameter eines Dokuments deterministisch aus einem Seed.
 
     Wird sowohl beim Erzeugen der Dateinamen als auch im Worker aufgerufen,
     damit Dateiname und Inhalt garantiert denselben Dokumenttyp haben.
+    Mit heute=True wird das Dokument auf den heutigen Tag datiert (Jahr in Nummern
+    und Dateinamen zieht mit), sonst auf den Zeitraum 2023–2026.
     """
     rng = random.Random(seed)
     today = date(2023, 1, 2) + timedelta(days=rng.randint(0, (date(2026, 9, 26) - date(2023, 1, 2)).days))
     typ = rng.choices([n for n, _, _ in TYPEN], weights=TYP_WEIGHTS, k=1)[0]
     ctx = make_ctx(rng, today, f"AZ-{rng.randint(10000, 99999)}", typ)
     font = rng.choice(["Helvetica", "Helvetica", "Helvetica", "Times-Roman", "Courier"])
+    if heute:
+        altes_jahr = ctx["jahr"]
+        today = date.today()
+        ctx["datum"], ctx["jahr"] = today, today.year
+        for feld in ("rechnr", "angebotnr", "liesnr", "abnr", "bestnr"):
+            ctx[feld] = ctx[feld].replace(str(altes_jahr), str(today.year))
     return rng, typ, today, ctx, font
 
 
-def build_one(spec, flat=False):
+def build_one(spec, flat=False, heute=False):
     idx, seed, outdir, name = spec
-    rng, typ, today, ctx, font = derive(seed)
+    rng, typ, today, ctx, font = derive(seed, heute)
     st = basis_styles(font)
     story, meta = TYP_FUNCS[typ](rng, ctx, st)
     if flat:
@@ -803,10 +811,10 @@ def build_one(spec, flat=False):
 
 
 def build_chunk(job):
-    chunk_id, specs, outdir, flat = job
+    chunk_id, specs, outdir, flat, heute = job
     res = []
     for spec in specs:
-        res.append(build_one((spec[0], spec[1], outdir, spec[2]), flat))
+        res.append(build_one((spec[0], spec[1], outdir, spec[2]), flat, heute))
     return chunk_id, res
 
 
@@ -819,6 +827,8 @@ def main():
     ap.add_argument("--index", default=None)
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--flat", action="store_true", help="ohne Jahr/Monat-Unterordner ablegen")
+    ap.add_argument("--document-today", action="store_true",
+                    help="Dokumente auf heute datieren statt auf den Zeitraum 2023-2026")
     a = ap.parse_args()
 
     os.makedirs(a.out, exist_ok=True)
@@ -827,7 +837,7 @@ def main():
     specs = []
     for i in range(a.count):
         s = rng.randint(1, 2 ** 31 - 1)
-        r2, typ, _today, tmp_ctx, _font = derive(s)
+        r2, typ, _today, tmp_ctx, _font = derive(s, a.document_today)
         name = make_name(r2, typ, tmp_ctx, i + 1)
         base, ext = os.path.splitext(name)
         ordk = "" if a.flat else f"{_today.year:04d}/{_today.month:02d}/"
@@ -843,7 +853,7 @@ def main():
     jobs = []
     per = max(1, len(specs) // a.jobs)
     for c in range(0, len(specs), per):
-        jobs.append((len(jobs), specs[c:c + per], a.out, a.flat))
+        jobs.append((len(jobs), specs[c:c + per], a.out, a.flat, a.document_today))
 
     t0 = time.time()
     rows, errors = [], []

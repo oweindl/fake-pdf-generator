@@ -126,15 +126,7 @@ def pdf_bytes(rng, typ, ctx, st, titel):
 
 def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elektrotechnik GmbH",
               dokument_heute=False, datum_aus_dokument=False):
-    rng, typ, today, ctx, font = G.derive(seed)
-    if dokument_heute:
-        # Dokument auf heute datieren: Jahr in allen Nummern mitziehen, sonst steht RE-2023 in einer
-        # Rechnung, die heute ausgestellt wurde.
-        altes_jahr = ctx["jahr"]
-        today = date.today()
-        ctx["datum"], ctx["jahr"] = today, today.year
-        for feld in ("rechnr", "angebotnr", "liesnr", "abnr", "bestnr"):
-            ctx[feld] = ctx[feld].replace(str(altes_jahr), str(today.year))
+    rng, typ, today, ctx, font = G.derive(seed, dokument_heute)
     st = G.basis_styles(font)
     text_rng = random.Random(seed ^ 0x5EED)
     daten, meta = pdf_bytes(rng, typ, ctx, st, "")
