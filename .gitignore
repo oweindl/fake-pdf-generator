@@ -18,3 +18,7 @@ watchfolder/
 *.log
 .DS_Store
 Thumbs.db
+# lokal erzeugte Mail-Ablagen
+mails/
+mails-sink/
+mailtest*/

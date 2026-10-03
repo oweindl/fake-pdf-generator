@@ -4,8 +4,11 @@ Erzeugt massenhaft realistische Fake-PDFs für Testumgebungen: Posteingang eines
 Handwerksbetriebs — Rechnungen, Mahnungen, Lieferscheine, Angebote, Kontoauszüge, Verträge,
 Behördenpost, Formulare, Quittungen, Lohnabrechnungen, Inventurlisten und mehr.
 
+Zwei Betriebsarten: **Dateien** (`gen.py` → PDF-Bestand) und **E-Mail** (`mail.py` → dieselben
+Dokumente als Mails an einen festen Adressaten, Anhang als PDF).
+
 Gedacht für Lasttests, DMS-/Archiv-Tests, OCR-Pipelines, Klassifizierung, Volltextsuche,
-Import-Tests — dort, wo echte Dokumente fehlen oder nicht verwendet werden dürfen.
+Mail-Ingestion- und Import-Tests — dort, wo echte Dokumente fehlen oder nicht verwendet werden dürfen.
 
 Alle Firmen, Personen, Adressen, IBANs, Rechnungsnummern und Beträge sind **frei erfunden**.
 Es besteht kein Personenbezug.
@@ -72,6 +75,47 @@ Generator laufen zu lassen:
 ```bash
 cp examples/*.pdf /pfad/zum/eingangsordner/
 ```
+
+## E-Mails senden
+
+`mail.py` baut dieselben Dokumente (gleiche Seeds → gleicher Inhalt) und verschickt sie als Mails
+an **einen festen Adressaten**. Ohne konfiguriertes E-Mail-Konto nutzbar:
+
+```bash
+# 1) Kein Konto, kein Netz: Mail als .eml-Datei ablegen (Standard)
+python mail.py --to "Vollmer Elektrotechnik GmbH <eingang@vollmer-elektro.de>" \
+               --count 50 --seed 20260927 --mail-dir ./mails --verify
+
+# 2) Lokaler SMTP-Server auf 127.0.0.1:8026 nimmt die Mails entgegen (echter SMTP-Pfad, kein Konto)
+python mail.py --to eingang@vollmer-elektro.de --count 20 --transport sink --mail-dir ./mails --verify
+
+# 3) Echte Zustellung über einen vorhandenen Server (braucht Zugangsdaten)
+python mail.py --to empfänger@example.de --count 5 --transport smtp \
+               --smtp-host smtp.example.com --smtp-port 587 --smtp-user benutzer --smtp-pass geheim \
+               --from noreply@example.com
+```
+
+| Option | Bedeutung | Default |
+|---|---|---|
+| `--to` | fester Empfänger, auch `Anzeigename <adresse>` | Pflicht |
+| `--count` / `--seed` | Anzahl / Basis-Seed (wie `gen.py`) | 50 / 20260927 |
+| `--transport` | `file` (Standard), `sink`, `smtp` | file |
+| `--mail-dir` | Ablageordner für die `.eml`-Dateien | ./mails |
+| `--smtp-host/-port/-user/-pass` | Zugangsdaten für echte Zustellung (auch `SMTP_HOST` … aus der Umgebung) | – |
+| `--from` | Absenderadresse überschreiben (z. B. `noreply@…`) | Absender des Dokuments |
+| `--rate` | Mails pro Sekunde | 20 |
+| `--verify` | abgelegte Mails zurücklesen und prüfen | aus |
+
+Was in den Mails steckt: deutscher Anschreiben-Text zum Dokument (Rechnung, Mahnung, Angebot,
+Behördenformular …), teils zusätzlich als HTML, ~78 % mit dem PDF im Anhang, 18 % als `AW:`-Antwort,
+8 % Werbe-/Verteilerpost. Betreff, Absender, Message-ID und Datum passen zum Dokument.
+
+`--verify` liest die `.eml`-Dateien mit dem Standard-`email`-Parser zurück und prüft Empfänger,
+Textteil und ob sich jeder PDF-Anhang öffnen lässt; Exit-Code 1 bei Befunden.
+
+Transport `file` und `sink` brauchen **kein E-Mail-Konto**: Dateien bzw. `127.0.0.1` genügen.
+Ein Postfach auf einem fremden Server lässt sich ohne Zugangsdaten nicht beliefern — für echte
+Zustellung ist ein Account, ein Testdienst (MailHog/Mailtrap/Postmark) oder ein eigener Relay nötig.
 
 ## Verifikation
 

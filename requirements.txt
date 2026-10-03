@@ -1,2 +1,4 @@
 reportlab>=4.0
 pypdf>=4.0
+# nur für "mail.py --transport sink" (lokaler SMTP-Testserver) nötig
+aiosmtpd>=1.4

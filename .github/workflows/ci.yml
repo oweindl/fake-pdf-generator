@@ -38,6 +38,16 @@ jobs:
       - name: Beispieldateien im Repo prüfen
         run: python check.py examples
 
+      - name: Mails als .eml erzeugen und prüfen (kein Konto nötig)
+        run: |
+          python mail.py --to "Vollmer Elektrotechnik GmbH <eingang@vollmer-elektro.de>" \
+            --count 20 --seed 99 --mail-dir mails --verify --quiet
+
+      - name: Lokaler SMTP-Versand und Rückprüfung
+        run: |
+          python mail.py --to eingang@vollmer-elektro.de --count 10 --seed 5 \
+            --transport sink --mail-dir mails-sink --verify --quiet
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
