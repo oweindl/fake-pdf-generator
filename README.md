@@ -109,6 +109,9 @@ Der Ordner ist selbsttragend: auf die Zielmaschine kopieren, beim ersten Start r
 
 | Wie | Start | Beenden |
 |---|---|---|
+Der Zielordner ist mit `\\hellfire\PDF-TEst\test\TestEingang` vorbelegt (änderbar in `panel.py`
+über `STANDARD_ZIEL` oder beim Start mit `python panel.py --ziel D:/eigener/ordner`).
+
 | Explorer (Windows) | `leitstand.cmd` doppelklicken — Fenster bleibt offen, Browser öffnet sich | Knopf **Beenden**, Strg-C oder Fenster schließen |
 | Terminal | `.venv\Scripts\python panel.py --port 8765` | Strg-C |
 | ohne Fenster (läuft weiter, wenn das Terminal schließt) | `start "" ".venv\Scripts\pythonw.exe" panel.py --no-browser` | Knopf **Beenden** oder `leitstand-stop.cmd` |

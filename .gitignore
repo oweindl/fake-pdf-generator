@@ -28,3 +28,4 @@ mail.env
 _*.txt
 _*.js
 _*.log
+index/

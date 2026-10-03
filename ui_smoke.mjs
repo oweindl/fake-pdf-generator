@@ -69,8 +69,11 @@ const Event = class { constructor(type) { this.type = type; } };
 const abrufe = [];
 async function fetchEcht(url, optionen) {
   const voll = url.startsWith('http') ? url : BASIS + url;
-  abrufe.push({ url: voll, optionen });
-  return globalThis.fetch(voll, optionen);
+  const antwort = await globalThis.fetch(voll, optionen);
+  const eintrag = { url: voll, optionen };
+  try { eintrag.antwort = await antwort.clone().json(); } catch { /* kein JSON */ }
+  abrufe.push(eintrag);
+  return antwort;
 }
 
 const tests = [];
@@ -80,7 +83,7 @@ const pruefe = (name, ok, detail = '') => tests.push({ name, ok: !!ok, detail })
 const testJs = `
 return (async () => {
   const erwartet = {
-    dateien: ['ordner', 'count', 'seed', 'jobs', 'layout', 'datum'],
+    dateien: ['ordner', 'count', 'seed', 'jobs', 'layout', 'datum', 'index'],
     pruefen: ['ordner'],
     mails: ['count', 'seed', 'transport', 'datum', 'mailordner', 'dokument_heute'],
     mail_check: ['was'],
@@ -89,6 +92,11 @@ return (async () => {
     testlauf: ['ordner', 'live', 'keep'],
   };
   const ziel = ${JSON.stringify(ZIEL)};
+  await umgebung();
+  const cfg0 = await (await fetch('/api/config')).json();
+  pruefe('Zielordner mit Server-Standard vorbelegt',
+    document.getElementById('d-ordner').value.trim() === cfg0.standard_ziel.trim(),
+    'Feld: ' + document.getElementById('d-ordner').value);
   $('d-ordner').value = ziel;
 
   // 1) Jeder Knopf setzt genau die erwarteten Felder ab (kein null.value, keine Lücken)
@@ -120,6 +128,14 @@ return (async () => {
     if (document.getElementById('status-pill').textContent !== 'läuft') break;
     await new Promise((r) => setTimeout(r, 400));
   }
+  // Der Server muss den Index außerhalb des Zielordners ablegen
+  const ruf = abrufe.filter((a) => a.url.endsWith('/api/run') && (a.optionen?.body || '').includes('"dateien"')
+    && a.antwort && a.antwort.argv).pop();
+  const argv = ruf ? ruf.antwort.argv : [];
+  const idx = argv.indexOf('--index');
+  pruefe('Index wird außerhalb des Zielordners abgelegt',
+    idx > 0 && !argv[idx + 1].startsWith(ziel), idx > 0 ? argv[idx + 1] : 'kein --index in der Argumentliste');
+
   pruefe('Statuspill nach Lauf = fertig', document.getElementById('status-pill').textContent === 'fertig',
     'Pill: ' + document.getElementById('status-pill').textContent);
   pruefe('Konsole zeigt Ergebnis', /Fertig: 6 PDFs/.test(document.getElementById('konsole').textContent),

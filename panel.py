@@ -27,7 +27,8 @@ from urllib.parse import urlparse, parse_qs
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
-STANDARD_ZIEL = os.path.join(os.path.expanduser("~"), "pdf-testlauf")
+# Vorbelegung für alle Aktionen (per --ziel änderbar)
+STANDARD_ZIEL = r"\\hellfire\PDF-TEst\test\TestEingang"
 
 zustand = {
     "prozess": None,
@@ -110,6 +111,7 @@ def mail_config():
 def a_dateien(p):
     ziel = pfad(p.get("ordner"), "Zielordner", STANDARD_ZIEL)
     count = zahl(p.get("count"), "Anzahl", 1, 200000, 100)
+    index_im_ziel = flag(p.get("index"))
     seed = zahl(p.get("seed"), "Seed", 0, 2 ** 31 - 1, 20260927)
     jobs = zahl(p.get("jobs"), "Parallelprozesse", 1, 64, max(1, (os.cpu_count() or 4) - 2))
     layout = auswahl(p.get("layout"), "Ablage", ["monat", "flach"], "monat")
@@ -120,7 +122,17 @@ def a_dateien(p):
         argv.append("--flat")
     if datum == "heute":
         argv.append("--document-today")
-    return argv, f"{count} PDFs nach {ziel} ({layout}, {datum})"
+    # Index liegt standardmäßig NICHT im Zielordner, damit überwachte Eingangsordner sauber bleiben
+    if index_im_ziel:
+        index_pfad = None
+    else:
+        index_ordner = os.path.join(HIER, "index")
+        os.makedirs(index_ordner, exist_ok=True)
+        index_pfad = os.path.join(index_ordner, f"lauf_{time.strftime('%Y%m%d_%H%M%S')}.csv")
+    if index_pfad:
+        argv += ["--index", index_pfad]
+    return argv, (f"{count} PDFs nach {ziel} ({layout}, {datum}"
+                  + (", Index im Zielordner" if index_im_ziel else f", Index: {index_pfad}") + ")")
 
 
 def a_pruefen(p):
@@ -216,6 +228,7 @@ def starte(aktion, parameter):
         argv, beschreibung = AKTIONEN[aktion](parameter)
         zustand.update({"zeilen": deque(maxlen=3000), "prozess": None, "exit": None, "ende": None,
                         "aktion": aktion, "parameter": parameter, "start": time.time()})
+        zustand["argv"] = argv
         zustand["zeilen"].append(f"$ {' '.join(argv)}")
         zustand["zeilen"].append(f"# {beschreibung}")
         prozess = subprocess.Popen(argv, cwd=HIER, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -304,7 +317,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if pfad_url.path == "/api/run":
                 beschreibung = starte(daten.get("aktion"), daten.get("parameter") or {})
-                self._json(200, {"ok": True, "beschreibung": beschreibung})
+                with sperre:
+                    argv = list(zustand.get("argv") or [])
+                self._json(200, {"ok": True, "beschreibung": beschreibung, "argv": argv[1:]})
             elif pfad_url.path == "/api/stop":
                 self._json(200, {"ok": stoppe()})
             elif pfad_url.path == "/api/open":
@@ -376,7 +391,11 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--selftest", action="store_true", help="Smoke-Test ohne Server/Browser")
+    ap.add_argument("--ziel", default=None, help="Zielordner, der in der Oberfläche vorbelegt wird")
     a = ap.parse_args()
+    global STANDARD_ZIEL
+    if a.ziel:
+        STANDARD_ZIEL = a.ziel
 
     if a.selftest:
         ergebnis = selftest()

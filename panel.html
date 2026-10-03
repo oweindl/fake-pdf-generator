@@ -78,7 +78,7 @@
   <section>
     <h2>PDFs erzeugen</h2>
     <div class="felder">
-      <div><label for="d-ordner">Zielordner</label><input id="d-ordner" placeholder="D:/pdf-temp"></div>
+      <div><label for="d-ordner">Zielordner</label><input id="d-ordner" placeholder="Zielordner aus panel.py"></div>
       <div><label for="d-count">Anzahl</label><input id="d-count" type="number" value="100"></div>
       <div><label for="d-seed">Seed</label><input id="d-seed" type="number" value="20260927"></div>
       <div><label for="d-jobs">Prozesse</label><input id="d-jobs" type="number" value="8"></div>
@@ -86,6 +86,9 @@
         <select id="d-layout"><option value="monat">Jahr/Monat</option><option value="flach">flach</option></select></div>
       <div><label for="d-datum">Dokumentdatum</label>
         <select id="d-datum"><option value="zeitraum">2023–2026</option><option value="heute">heute</option></select></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="d-index"><label for="d-index" style="margin:0">_index.csv
+          im Zielordner ablegen</label></div></div>
     </div>
     <div class="knopfreihe">
       <button class="haupt" data-aktion="dateien" data-form="d-">Erzeugen</button>
@@ -168,7 +171,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum",
+const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum","d-index",
                 "m-count","m-seed","m-transport","m-datum","m-mailordner","m-dokument-heute",
                 "p-was","p-anzahl","t-ordner","t-sink","t-live","t-keep"];
 let laeuft = false;
@@ -192,7 +195,8 @@ function parameter(aktion, formPraefix, nur) {
   if (nur === "ordner") return { ordner: nimm("ordner") };
   if (aktion === "dateien") return {
     ordner: nimm("ordner"), count: nimm("count"), seed: nimm("seed"), jobs: nimm("jobs"),
-    layout: nimm("layout"), datum: nimm("datum") };
+    layout: nimm("layout"), datum: nimm("datum"),
+    index: $(formPraefix + "index").checked };
   if (aktion === "mails") return {
     count: nimm("count"), seed: nimm("seed"), transport: nimm("transport"), datum: nimm("datum"),
     mailordner: nimm("mailordner"), dokument_heute: $(formPraefix + "dokument-heute").checked };
@@ -260,6 +264,9 @@ async function umgebung() {
     zeilen.push(["Passwort", w.SMTP_PASS ? w.SMTP_PASS : "nicht gesetzt"]);
   }
   $("umgebung").innerHTML = zeilen.map(([k, v]) => `<div>${k}</div><div><code>${String(v ?? "")}</code></div>`).join("");
+  // Vorbelegung aus dem Server, solange nichts eigenes gespeichert ist
+  const feld = $("d-ordner");
+  if (!feld.value.trim()) { feld.value = daten.standard_ziel; localStorage.setItem("leitstand.d-ordner", daten.standard_ziel); }
   $("d-ziel").textContent = daten.ordner.existiert ? `${daten.ordner.pdf} PDF im Zielordner` : "";
   $("m-ziel").textContent = (daten.mail && daten.mail.werte && daten.mail.werte.MAIL_TO)
     ? "Empfänger: " + daten.mail.werte.MAIL_TO : "kein Empfänger in mail.env — dann --to nötig";
