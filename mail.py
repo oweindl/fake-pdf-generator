@@ -242,23 +242,65 @@ def verifiziere(ordner, ziel, erwartet):
     return 0 if (len(dateien) == erwartet and not falsch_ziel and not ohne_text and not kaputte_pdfs) else 1
 
 
+KONFIG_NAME = "mail.env"
+
+
+def lade_config(pfad=None):
+    """Liest eine einfache KEY=VALUE-Datei (mail.env) — Vorlage: mail.env.example."""
+    kandidaten = [pfad] if pfad else [os.path.join(os.path.dirname(os.path.abspath(__file__)), KONFIG_NAME),
+                                      os.path.join(os.getcwd(), KONFIG_NAME)]
+    for k in kandidaten:
+        if k and os.path.exists(k):
+            werte = {}
+            for zeile in open(k, encoding="utf-8"):
+                zeile = zeile.strip()
+                if not zeile or zeile.startswith("#") or "=" not in zeile:
+                    continue
+                schluessel, wert = zeile.split("=", 1)
+                wert = wert.strip().strip('"').strip("'")
+                if wert:
+                    werte[schluessel.strip().upper()] = wert
+            return werte, k
+    return {}, None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Fake-Dokumente als E-Mail an einen festen Adressaten")
-    ap.add_argument("--to", required=True, help="fester Empfänger (Adresse oder Anzeigename <adresse>)")
-    ap.add_argument("--count", type=int, default=50)
+    ap.add_argument("--to", default=None,
+                    help="fester Empfänger (Adresse oder Anzeigename <adresse>); sonst MAIL_TO aus mail.env")
+    ap.add_argument("--count", type=int, default=5, help="Anzahl Mails (Standard 5)")
     ap.add_argument("--seed", type=int, default=20260927)
     ap.add_argument("--transport", choices=["file", "sink", "smtp"], default="file")
     ap.add_argument("--mail-dir", default="./mails", help="Ablage der .eml-Dateien (file/sink)")
-    ap.add_argument("--smtp-host", default=os.environ.get("SMTP_HOST"))
-    ap.add_argument("--smtp-port", type=int, default=int(os.environ.get("SMTP_PORT", 587)))
-    ap.add_argument("--smtp-user", default=os.environ.get("SMTP_USER"))
-    ap.add_argument("--smtp-pass", default=os.environ.get("SMTP_PASS"))
+    ap.add_argument("--config", default=None, help=f"Pfad zur Konfigurationsdatei (Standard: {KONFIG_NAME})")
+    ap.add_argument("--smtp-host", default=None)
+    ap.add_argument("--smtp-port", type=int, default=None)
+    ap.add_argument("--smtp-user", default=None)
+    ap.add_argument("--smtp-pass", default=None)
+    ap.add_argument("--smtp-ssl", action="store_true", help="implizites TLS (Port 465); sonst STARTTLS")
     ap.add_argument("--from", dest="von", default=None, help="Absenderadresse überschreiben")
     ap.add_argument("--rate", type=float, default=20.0, help="Mails pro Sekunde (0 = ungebremst)")
 
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true", help="abgelegte Mails anschließend prüfen")
+    ap.add_argument("--check-connection", action="store_true",
+                    help="nur SMTP-Verbindung und Anmeldung prüfen, nichts senden")
     a = ap.parse_args()
+
+    # Reihenfolge: Kommandozeile > Umgebungsvariable > mail.env
+    cfg, cfg_pfad = lade_config(a.config)
+    a.to = a.to or cfg.get("MAIL_TO") or os.environ.get("MAIL_TO")
+    a.smtp_host = a.smtp_host or cfg.get("SMTP_HOST") or os.environ.get("SMTP_HOST")
+    a.smtp_port = a.smtp_port or int(cfg.get("SMTP_PORT") or os.environ.get("SMTP_PORT") or 587)
+    a.smtp_user = a.smtp_user or cfg.get("SMTP_USER") or os.environ.get("SMTP_USER")
+    a.smtp_pass = a.smtp_pass or cfg.get("SMTP_PASS") or os.environ.get("SMTP_PASS")
+    a.von = a.von or cfg.get("SMTP_FROM") or os.environ.get("SMTP_FROM")
+    a.smtp_ssl = a.smtp_ssl or str(cfg.get("SMTP_SSL", os.environ.get("SMTP_SSL", ""))).lower() in ("1", "true", "ja", "yes")
+    if not a.to:
+        print("FEHLER: kein Empfänger — --to angeben oder MAIL_TO in mail.env setzen", file=sys.stderr)
+        return 2
+    if not a.quiet and cfg_pfad:
+        print(f"Konfiguration geladen: {cfg_pfad}")
 
     if "<" in a.to and a.to.rstrip().endswith(">"):
         zielname, zieladresse = a.to.split("<")[0].strip(), a.to.split("<")[-1].rstrip(">").strip()
@@ -273,17 +315,27 @@ def main():
             print(f"Lokaler SMTP-Server läuft auf 127.0.0.1:{os.environ.get('MAIL_SINK_PORT', 8026)}")
     ordner = EmlOrdner(a.mail_dir) if a.transport == "file" else None
     verbindung = None
-    if a.transport == "smtp":
+    if a.transport == "smtp" or a.check_connection:
         if not a.smtp_host:
-            print("FEHLER: --smtp-host (oder SMTP_HOST) fehlt für echte Zustellung", file=sys.stderr)
+            print("FEHLER: SMTP_HOST fehlt — für echte Zustellung --smtp-host angeben oder "
+                  f"SMTP_HOST/SMTP_USER/SMTP_PASS in {KONFIG_NAME} eintragen (Vorlage: mail.env.example)",
+                  file=sys.stderr)
             return 2
-        verbindung = smtplib.SMTP(a.smtp_host, a.smtp_port, timeout=30)
+        print(f"SMTP: {a.smtp_host}:{a.smtp_port} als {a.smtp_user or '(ohne Anmeldung)'} "
+              f"→ Empfänger {zieladresse}, {a.count} Mail(s)")
+        if a.smtp_ssl or a.smtp_port == 465:
+            verbindung = smtplib.SMTP_SSL(a.smtp_host, a.smtp_port, timeout=30)
+        else:
+            verbindung = smtplib.SMTP(a.smtp_host, a.smtp_port, timeout=30)
+            if a.smtp_port != 25 and verbindung.has_extn("starttls"):
+                verbindung.starttls()
         verbindung.ehlo()
-        if a.smtp_port != 25 and verbindung.has_extn("starttls"):
-            verbindung.starttls()
-            verbindung.ehlo()
         if a.smtp_user:
             verbindung.login(a.smtp_user, a.smtp_pass)
+        if a.check_connection:
+            print("Verbindung und Anmeldung in Ordnung — es wurde nichts gesendet.")
+            verbindung.quit()
+            return 0
     elif a.transport == "sink":
         verbindung = smtplib.SMTP("127.0.0.1", int(os.environ.get("MAIL_SINK_PORT", 8026)), timeout=30)
 

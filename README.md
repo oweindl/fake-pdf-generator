@@ -82,9 +82,12 @@ cp examples/*.pdf /pfad/zum/eingangsordner/
 an **einen festen Adressaten**. Ohne konfiguriertes E-Mail-Konto nutzbar:
 
 ```bash
-# 1) Kein Konto, kein Netz: Mail als .eml-Datei ablegen (Standard)
+# 0) Empfänger steht in mail.env (MAIL_TO) — reicht für den Normalfall
+python mail.py --count 5 --mail-dir ./mails --verify
+
+# 1) Kein Konto, kein Netz: Mail als .eml-Datei ablegen (Standard, Empfänger explizit)
 python mail.py --to "Vollmer Elektrotechnik GmbH <eingang@vollmer-elektro.de>" \
-               --count 50 --seed 20260927 --mail-dir ./mails --verify
+               --count 20 --seed 20260927 --mail-dir ./mails --verify
 
 # 2) Lokaler SMTP-Server auf 127.0.0.1:8026 nimmt die Mails entgegen (echter SMTP-Pfad, kein Konto)
 python mail.py --to eingang@vollmer-elektro.de --count 20 --transport sink --mail-dir ./mails --verify
@@ -97,11 +100,14 @@ python mail.py --to empfänger@example.de --count 5 --transport smtp \
 
 | Option | Bedeutung | Default |
 |---|---|---|
-| `--to` | fester Empfänger, auch `Anzeigename <adresse>` | Pflicht |
-| `--count` / `--seed` | Anzahl / Basis-Seed (wie `gen.py`) | 50 / 20260927 |
+| `--to` | fester Empfänger, auch `Anzeigename <adresse>` | `MAIL_TO` aus `mail.env` |
+| `--count` / `--seed` | Anzahl / Basis-Seed (wie `gen.py`) | 5 / 20260927 |
 | `--transport` | `file` (Standard), `sink`, `smtp` | file |
 | `--mail-dir` | Ablageordner für die `.eml`-Dateien | ./mails |
-| `--smtp-host/-port/-user/-pass` | Zugangsdaten für echte Zustellung (auch `SMTP_HOST` … aus der Umgebung) | – |
+| `--smtp-host/-port/-user/-pass` | Zugangsdaten für echte Zustellung (auch `SMTP_*` aus `mail.env` oder der Umgebung) | Port 587 |
+| `--smtp-ssl` | implizites TLS (Port 465); sonst STARTTLS automatisch | aus |
+| `--check-connection` | nur Verbindung und Anmeldung prüfen, nichts senden | aus |
+| `--config` | andere Konfigurationsdatei | `mail.env` neben dem Skript |
 | `--from` | Absenderadresse überschreiben (z. B. `noreply@…`) | Absender des Dokuments |
 | `--rate` | Mails pro Sekunde | 20 |
 | `--verify` | abgelegte Mails zurücklesen und prüfen | aus |
@@ -113,9 +119,30 @@ Behördenformular …), teils zusätzlich als HTML, ~78 % mit dem PDF im Anhang,
 `--verify` liest die `.eml`-Dateien mit dem Standard-`email`-Parser zurück und prüft Empfänger,
 Textteil und ob sich jeder PDF-Anhang öffnen lässt; Exit-Code 1 bei Befunden.
 
+### Echter Versand: nur vier Zeilen fehlen
+
+`mail.env` (liegt neben `mail.py`, ist in `.gitignore`) enthält den festen Empfänger bereits:
+
+```ini
+MAIL_TO=rechnungen@olwe.de
+SMTP_HOST=          # z. B. smtp.ionos.de
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=          # optional, sonst Absender des Dokuments
+```
+
+Sobald Host/Benutzer/Passwort eingetragen sind:
+
+```bash
+python mail.py --transport smtp --count 5 --check-connection   # erst prüfen, sendet nichts
+python mail.py --transport smtp --count 5                      # dann wirklich senden
+```
+
 Transport `file` und `sink` brauchen **kein E-Mail-Konto**: Dateien bzw. `127.0.0.1` genügen.
 Ein Postfach auf einem fremden Server lässt sich ohne Zugangsdaten nicht beliefern — für echte
 Zustellung ist ein Account, ein Testdienst (MailHog/Mailtrap/Postmark) oder ein eigener Relay nötig.
+Bei `--transport smtp` wird **wirklich versendet**; das Skript gibt vorher Host, Empfänger und Anzahl aus.
 
 ## Verifikation
 
