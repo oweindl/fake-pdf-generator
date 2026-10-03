@@ -109,6 +109,7 @@ python mail.py --to empfänger@example.de --count 5 --transport smtp \
 | `--check-connection` | nur Verbindung und Anmeldung prüfen, nichts senden | aus |
 | `--no-auth` | ohne Anmeldung senden (lokale Testserver) | aus |
 | `--serve` / `--serve-seconds` | nur den lokalen SMTP-Sink betreiben und auf Post warten | aus / bis Strg-C |
+| `--check-recipient` | prüfen, ob die Empfängeradresse auf dem Server existiert (sendet nichts) | aus |
 | `--verify-imap` / `--imap-wait` | nach dem Senden im Postfach prüfen, ob die Mails angekommen sind | aus / 45 s |
 | `--imap-list N` | nur die neuesten N Mails im Postfach auflisten, nichts senden | aus |
 | `--imap-host/-port/-user/-pass` | Posteingangsserver (Standard: `IMAP_HOST`/`SMTP_*`) | 993 |
@@ -146,6 +147,17 @@ Fremd-Absender an SPF/DKIM scheitern.
 ```bash
 python mail.py --transport smtp --count 1 --verify-imap     # senden und im Postfach nachsehen
 python mail.py --imap-list 10                               # nur Postfach ansehen
+```
+
+`--check-recipient` fragt den Server, ob die Zieladresse existiert — ohne Mailversand. Es wird zusätzlich
+eine Kontrolladresse derselben Domain geprüft; wird die nicht abgelehnt, prüft der Server Empfänger nicht
+und das Ergebnis ist wertlos:
+
+```
+$ python mail.py --check-recipient
+Empfängerprüfung (es wird keine Mail gesendet):
+  RCPT rechnungen@olwe.de             → 250 2.1.5 Ok
+  RCPT gibt-es-nicht-a23588e1@olwe.de → 550 5.1.1 … User unknown in virtual mailbox table
 ```
 
 `--verify-imap` sammelt die Message-IDs der gesendeten Mails und pollt damit den Posteingang

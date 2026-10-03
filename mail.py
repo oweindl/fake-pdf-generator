@@ -22,6 +22,7 @@ import random
 import smtplib
 import sys
 import time
+import uuid
 from datetime import date, datetime, time as dtime, timedelta
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
@@ -363,6 +364,8 @@ def main():
     ap.add_argument("--imap-wait", type=float, default=45, help="Wartezeit für die Zustellprüfung (Sekunden)")
     ap.add_argument("--imap-list", type=int, default=0,
                     help="nur die neuesten N Mails im Postfach auflisten, nichts senden")
+    ap.add_argument("--check-recipient", action="store_true",
+                    help="prüfen, ob die Empfängeradresse auf dem Server existiert (sendet nichts)")
     ap.add_argument("--no-auth", action="store_true",
                     help="ohne Anmeldung senden (für lokale Testserver wie den eigenen Sink)")
     a = ap.parse_args()
@@ -420,7 +423,7 @@ def main():
             print(f"Lokaler SMTP-Server läuft auf 127.0.0.1:{os.environ.get('MAIL_SINK_PORT', 8026)}")
     ordner = EmlOrdner(a.mail_dir) if a.transport == "file" else None
     verbindung = None
-    if a.transport == "smtp" or a.check_connection:
+    if a.transport == "smtp" or a.check_connection or a.check_recipient:
         if not a.smtp_host:
             print("FEHLER: SMTP_HOST fehlt — für echte Zustellung --smtp-host angeben oder "
                   f"SMTP_HOST/SMTP_USER/SMTP_PASS in {KONFIG_NAME} eintragen (Vorlage: mail.env.example)",
@@ -455,6 +458,19 @@ def main():
             return 2
         if a.smtp_user and not a.no_auth:
             verbindung.login(a.smtp_user, a.smtp_pass)
+        if a.check_recipient:
+            kontrolle = f"gibt-es-nicht-{uuid.uuid4().hex[:8]}@{zieladresse.split('@')[-1]}"
+            print("Empfängerprüfung (es wird keine Mail gesendet):", flush=True)
+            for adresse in (zieladresse, kontrolle):
+                verbindung.mail(a.von or a.smtp_user)
+                code, antwort = verbindung.rcpt(adresse)
+                text = antwort.decode(errors="replace").strip() if isinstance(antwort, bytes) else str(antwort)
+                print(f"  RCPT {adresse:<36} → {code} {text}", flush=True)
+                verbindung.rset()
+            print(f"  Kontrolladresse {kontrolle} soll abgelehnt werden — passiert das nicht, prüft der "
+                  f"Server Empfänger nicht und das Ergebnis sagt nichts aus.")
+            verbindung.quit()
+            return 0
         if a.check_connection:
             print(f"Verbindung und Anmeldung in Ordnung ({a.smtp_user} bei {a.smtp_host}) — "
                   f"es wurde nichts gesendet.")
