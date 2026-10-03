@@ -102,6 +102,8 @@ python mail.py --to empfänger@example.de --count 5 --transport smtp \
 |---|---|---|
 | `--to` | fester Empfänger, auch `Anzeigename <adresse>` | `MAIL_TO` aus `mail.env` |
 | `--count` / `--seed` | Anzahl / Basis-Seed (wie `gen.py`) | 5 / 20260927 |
+| `--document-today` | auch das Dokument selbst auf heute datieren (Nummern ziehen das Jahr mit) | aus |
+| `--date-from-document` | Mail-Kopf auf das Dokumentdatum setzen statt auf die aktuelle Zeit | aus |
 | `--transport` | `file` (Standard), `sink`, `smtp` | file |
 | `--mail-dir` | Ablageordner für die `.eml`-Dateien | ./mails |
 | `--smtp-host/-port/-user/-pass` | Zugangsdaten für echte Zustellung (auch `SMTP_*` aus `mail.env` oder der Umgebung) | Port 587 |
@@ -117,6 +119,12 @@ python mail.py --to empfänger@example.de --count 5 --transport smtp \
 | `--from` | Absenderadresse überschreiben (z. B. `noreply@…`) | Absender des Dokuments |
 | `--rate` | Mails pro Sekunde | 20 |
 | `--verify` | abgelegte Mails zurücklesen und prüfen | aus |
+
+**Datum:** Mails tragen immer das **aktuelle Versanddatum** im Kopf — sie sollen im Postfach oben
+stehen, nicht in der Vergangenheit. Das Dokument im Anhang behält seinen eigenen Zeitraum (2023–2026);
+mit `--document-today` wird auch dieses auf heute datiert (inklusive Jahr in Rechnungsnummern und
+Dateinamen). `--date-from-document` stellt das alte Verhalten wieder her, wenn ein Bestand bewusst
+historisch aussehen soll.
 
 Was in den Mails steckt: deutscher Anschreiben-Text zum Dokument (Rechnung, Mahnung, Angebot,
 Behördenformular …), teils zusätzlich als HTML, ~78 % mit dem PDF im Anhang, 18 % als `AW:`-Antwort,

@@ -730,7 +730,7 @@ def make_name(rng, typ, ctx, counter):
     elif muster < 0.84:
         s = f"{kurz}-{nrm(typ)}-{d.strftime('%Y%m%d')}"
     elif muster < 0.88:
-        s = f"2024-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}_{rng.randint(1, 99):02d} {nrm(typ)}"
+        s = f"{d.year}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}_{rng.randint(1, 99):02d} {nrm(typ)}"
     elif muster < 0.92:
         s = f"{rng.randint(1, 999)}"
     elif muster < 0.95:

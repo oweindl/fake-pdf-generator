@@ -124,8 +124,17 @@ def pdf_bytes(rng, typ, ctx, st, titel):
     return buf.getvalue(), meta
 
 
-def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elektrotechnik GmbH"):
+def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elektrotechnik GmbH",
+              dokument_heute=False, datum_aus_dokument=False):
     rng, typ, today, ctx, font = G.derive(seed)
+    if dokument_heute:
+        # Dokument auf heute datieren: Jahr in allen Nummern mitziehen, sonst steht RE-2023 in einer
+        # Rechnung, die heute ausgestellt wurde.
+        altes_jahr = ctx["jahr"]
+        today = date.today()
+        ctx["datum"], ctx["jahr"] = today, today.year
+        for feld in ("rechnr", "angebotnr", "liesnr", "abnr", "bestnr"):
+            ctx[feld] = ctx[feld].replace(str(altes_jahr), str(today.year))
     st = G.basis_styles(font)
     text_rng = random.Random(seed ^ 0x5EED)
     daten, meta = pdf_bytes(rng, typ, ctx, st, "")
@@ -153,8 +162,11 @@ def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elekt
     msg["To"] = f"{zielname} <{ziel_adresse}>" if zielname else ziel_adresse
     msg["From"] = f"{anzeigename} <{absender_adresse}>"
     msg["Subject"] = betreff if text_rng.random() > 0.18 else f"AW: {betreff}"
-    zeitpunkt = datetime.combine(ctx["datum"], dtime(text_rng.randint(6, 20), text_rng.randint(0, 59),
-                                                    text_rng.randint(0, 59)))
+    if datum_aus_dokument:
+        # nur für Bestände, die bewusst historisch aussehen sollen
+        zeitpunkt = datetime.combine(ctx["datum"], dtime(text_rng.randint(6, 20), text_rng.randint(0, 59)))
+    else:
+        zeitpunkt = datetime.now()  # Mails tragen immer das aktuelle Versanddatum
     # timestamp() statt Ordinaltag * 86400 — Windows kann Zeitstempel außerhalb ~1970..3000 nicht umrechnen
     msg["Date"] = formatdate(zeitpunkt.timestamp(), localtime=True)
     msg["Message-ID"] = make_msgid(domain=absender_adresse.split("@")[-1])
@@ -337,6 +349,10 @@ def main():
                     help="fester Empfänger (Adresse oder Anzeigename <adresse>); sonst MAIL_TO aus mail.env")
     ap.add_argument("--count", type=int, default=5, help="Anzahl Mails (Standard 5)")
     ap.add_argument("--seed", type=int, default=20260927)
+    ap.add_argument("--document-today", action="store_true",
+                    help="auch das Dokument selbst auf heute datieren (Standard: Zeitraum 2023–2026)")
+    ap.add_argument("--date-from-document", action="store_true",
+                    help="Mail-Kopf auf das Dokumentdatum setzen statt auf die aktuelle Zeit")
     ap.add_argument("--transport", choices=["file", "sink", "smtp"], default="file")
     ap.add_argument("--mail-dir", default="./mails", help="Ablage der .eml-Dateien (file/sink)")
     ap.add_argument("--config", default=None, help=f"Pfad zur Konfigurationsdatei (Standard: {KONFIG_NAME})")
@@ -485,7 +501,8 @@ def main():
         rng_seeds = random.Random(a.seed)
         for i in range(a.count):
             seed = rng_seeds.randint(1, 2 ** 31 - 1)
-            msg, typ, betreff, anhang = baue_mail(None, seed, zieladresse, a.von, zielname)
+            msg, typ, betreff, anhang = baue_mail(None, seed, zieladresse, a.von, zielname,
+                                                  a.document_today, a.date_from_document)
             try:
                 if a.transport == "file":
                     ordner.speichere(msg, i + 1)
