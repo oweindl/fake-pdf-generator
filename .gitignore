@@ -23,3 +23,8 @@ mails/
 mails-sink/
 mailtest*/
 mail.env
+
+# Wegwerf-Dateien aus Tests
+_*.txt
+_*.js
+_*.log
