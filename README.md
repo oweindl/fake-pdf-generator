@@ -109,6 +109,9 @@ python mail.py --to empfänger@example.de --count 5 --transport smtp \
 | `--check-connection` | nur Verbindung und Anmeldung prüfen, nichts senden | aus |
 | `--no-auth` | ohne Anmeldung senden (lokale Testserver) | aus |
 | `--serve` / `--serve-seconds` | nur den lokalen SMTP-Sink betreiben und auf Post warten | aus / bis Strg-C |
+| `--verify-imap` / `--imap-wait` | nach dem Senden im Postfach prüfen, ob die Mails angekommen sind | aus / 45 s |
+| `--imap-list N` | nur die neuesten N Mails im Postfach auflisten, nichts senden | aus |
+| `--imap-host/-port/-user/-pass` | Posteingangsserver (Standard: `IMAP_HOST`/`SMTP_*`) | 993 |
 | `--config` | andere Konfigurationsdatei | `mail.env` neben dem Skript |
 | `--from` | Absenderadresse überschreiben (z. B. `noreply@…`) | Absender des Dokuments |
 | `--rate` | Mails pro Sekunde | 20 |
@@ -137,6 +140,19 @@ SMTP_FROM=pdfcloud-pro@olwe.de
 Steht `SMTP_FROM`, wird diese Adresse als Absender gesetzt (Envelope und Header) — der **Anzeigename**
 bleibt der Name der erfundenen Firma, die Adresse kommt aus dem eigenen Konto. Ohne das würde der
 Fremd-Absender an SPF/DKIM scheitern.
+
+### Zustellung wirklich nachweisen (IMAP)
+
+```bash
+python mail.py --transport smtp --count 1 --verify-imap     # senden und im Postfach nachsehen
+python mail.py --imap-list 10                               # nur Postfach ansehen
+```
+
+`--verify-imap` sammelt die Message-IDs der gesendeten Mails und pollt damit den Posteingang
+(IMAP über TLS, `mxe9c5.netcup.net:993`). Gefundene Mails werden mit UID bestätigt; was nicht
+auftaucht, wird als „noch nicht zugestellt, gefiltert oder Postfach gehört nicht zu diesem Konto"
+ausgewiesen — die Prüfung liest das Postfach von `pdfcloud-pro@olwe.de`, ein getrenntes Postfach
+`rechnungen@olwe.de` kann sie nicht einsehen.
 
 Solange das Passwort fehlt, meldet der Test genau das (und sonst nichts):
 

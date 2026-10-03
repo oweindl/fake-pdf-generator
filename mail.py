@@ -266,6 +266,70 @@ def lade_config(pfad=None):
     return {}, None
 
 
+def imap_verbinde(a):
+    """Öffnet das Postfach per IMAP über TLS (Standardport 993)."""
+    import imaplib
+    M = imaplib.IMAP4_SSL(a.imap_host, a.imap_port, timeout=30)
+    M.login(a.imap_user, a.imap_pass)
+    return M
+
+
+def imap_neueste(M, anzahl):
+    from email import policy
+    from email.parser import BytesParser
+    typ, daten = M.select("INBOX")
+    if typ != "OK":
+        print(f"IMAP: Postfach nicht auswählbar: {daten}")
+        return
+    typ, res = M.search(None, "ALL")
+    ids = res[0].split()[-anzahl:]
+    print(f"IMAP: {len(ids)} neueste Mail(s) im Posteingang:")
+    for i in reversed(ids):
+        typ, teile = M.fetch(i, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE TO)])")
+        kopf = b"".join(t[1] for t in teile if isinstance(t, tuple))
+        msg = BytesParser(policy=policy.default).parsebytes(kopf)
+        print(f"  - {msg['Date']} | {msg['From']} → {msg['To']} | {msg['Subject']}")
+
+
+def imap_pruefe(a, message_ids, warten):
+    """Wartet, bis die Mails im Postfach auftauchen (Zustellnachweis)."""
+    if not a.imap_host or not a.imap_user or not a.imap_pass:
+        print("IMAP: Zugangsdaten fehlen (IMAP_USER/IMAP_PASS bzw. SMTP_USER/SMTP_PASS).", file=sys.stderr)
+        return 2
+    try:
+        M = imap_verbinde(a)
+    except Exception as exc:  # noqa: BLE001
+        print(f"IMAP: Anmeldung fehlgeschlagen ({type(exc).__name__}: {exc})", file=sys.stderr)
+        return 2
+    try:
+        if a.imap_list:
+            return imap_neueste(M, a.imap_list) or 0
+        typ, _ = M.select("INBOX")
+        gefunden, ende = {}, time.time() + warten
+        while True:
+            for mid in message_ids:
+                if mid in gefunden:
+                    continue
+                typ, res = M.search(None, "HEADER", "Message-ID", mid)
+                if res and res[0].split():
+                    gefunden[mid] = res[0].split()[-1].decode()
+            if len(gefunden) == len(message_ids) or time.time() > ende:
+                break
+            time.sleep(5)
+        for mid in message_ids:
+            if mid in gefunden:
+                print(f"  Zustellung bestätigt: {mid} (UID {gefunden[mid]})")
+            else:
+                print(f"  Nicht gefunden: {mid} — noch nicht zugestellt, in einen anderen Ordner "
+                      f"gefiltert oder das Postfach gehört nicht zu diesem Konto.")
+        return 0 if len(gefunden) == len(message_ids) else 1
+    finally:
+        try:
+            M.logout()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def main():
     ap = argparse.ArgumentParser(description="Fake-Dokumente als E-Mail an einen festen Adressaten")
     ap.add_argument("--to", default=None,
@@ -290,6 +354,15 @@ def main():
     ap.add_argument("--serve", action="store_true",
                     help="nur den lokalen SMTP-Sink betreiben und auf Post warten (kein Versand)")
     ap.add_argument("--serve-seconds", type=float, default=0, help="Laufzeit für --serve (0 = bis Strg-C)")
+    ap.add_argument("--imap-host", default=None, help="Posteingangsserver (Standard: SMTP_HOST)")
+    ap.add_argument("--imap-port", type=int, default=None, help="IMAP über TLS (Standard 993)")
+    ap.add_argument("--imap-user", default=None)
+    ap.add_argument("--imap-pass", default=None)
+    ap.add_argument("--verify-imap", action="store_true",
+                    help="nach dem Senden im Postfach prüfen, ob die Mails angekommen sind")
+    ap.add_argument("--imap-wait", type=float, default=45, help="Wartezeit für die Zustellprüfung (Sekunden)")
+    ap.add_argument("--imap-list", type=int, default=0,
+                    help="nur die neuesten N Mails im Postfach auflisten, nichts senden")
     ap.add_argument("--no-auth", action="store_true",
                     help="ohne Anmeldung senden (für lokale Testserver wie den eigenen Sink)")
     a = ap.parse_args()
@@ -303,6 +376,10 @@ def main():
     a.smtp_pass = a.smtp_pass or cfg.get("SMTP_PASS") or os.environ.get("SMTP_PASS")
     a.von = a.von or cfg.get("SMTP_FROM") or os.environ.get("SMTP_FROM")
     a.smtp_ssl = a.smtp_ssl or str(cfg.get("SMTP_SSL", os.environ.get("SMTP_SSL", ""))).lower() in ("1", "true", "ja", "yes")
+    a.imap_host = a.imap_host or cfg.get("IMAP_HOST") or os.environ.get("IMAP_HOST") or a.smtp_host
+    a.imap_port = a.imap_port or int(cfg.get("IMAP_PORT") or os.environ.get("IMAP_PORT") or 993)
+    a.imap_user = a.imap_user or cfg.get("IMAP_USER") or os.environ.get("IMAP_USER") or a.smtp_user
+    a.imap_pass = a.imap_pass or cfg.get("IMAP_PASS") or os.environ.get("IMAP_PASS") or a.smtp_pass
     if not a.to:
         print("FEHLER: kein Empfänger — --to angeben oder MAIL_TO in mail.env setzen", file=sys.stderr)
         return 2
@@ -313,6 +390,9 @@ def main():
         zielname, zieladresse = a.to.split("<")[0].strip(), a.to.split("<")[-1].rstrip(">").strip()
     else:
         zielname, zieladresse = "", a.to.strip()
+
+    if a.imap_list:
+        return imap_pruefe(a, [], 0)
 
     if a.serve:
         import time as _t
@@ -384,7 +464,7 @@ def main():
         verbindung = smtplib.SMTP("127.0.0.1", int(os.environ.get("MAIL_SINK_PORT", 8026)), timeout=30)
 
     t0 = time.time()
-    gesendet, fehler = 0, []
+    gesendet, fehler, ids = 0, [], []
     try:
         rng_seeds = random.Random(a.seed)
         for i in range(a.count):
@@ -396,6 +476,7 @@ def main():
                 else:
                     verbindung.send_message(msg, from_addr=a.von or None)
                 gesendet += 1
+                ids.append(msg["Message-ID"])
             except Exception as exc:  # noqa: BLE001
                 fehler.append(f"{i+1}: {type(exc).__name__}: {exc}")
             if a.rate and i and i % max(1, int(a.rate)) == 0:
@@ -417,6 +498,9 @@ def main():
         print("  FEHLER:", f)
     if a.verify:
         return verifiziere(ziel_ordner, f"{zielname} <{zieladresse}>" if zielname else zieladresse, a.count)
+    if a.verify_imap:
+        print(f"\nIMAP-Gegenprobe bei {a.imap_host}:{a.imap_port} (max. {int(a.imap_wait)} s):")
+        return imap_pruefe(a, ids, a.imap_wait)
     return 1 if fehler else 0
 
 
