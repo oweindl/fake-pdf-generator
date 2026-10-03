@@ -107,6 +107,8 @@ python mail.py --to empfänger@example.de --count 5 --transport smtp \
 | `--smtp-host/-port/-user/-pass` | Zugangsdaten für echte Zustellung (auch `SMTP_*` aus `mail.env` oder der Umgebung) | Port 587 |
 | `--smtp-ssl` | implizites TLS (Port 465); sonst STARTTLS automatisch | aus |
 | `--check-connection` | nur Verbindung und Anmeldung prüfen, nichts senden | aus |
+| `--no-auth` | ohne Anmeldung senden (lokale Testserver) | aus |
+| `--serve` / `--serve-seconds` | nur den lokalen SMTP-Sink betreiben und auf Post warten | aus / bis Strg-C |
 | `--config` | andere Konfigurationsdatei | `mail.env` neben dem Skript |
 | `--from` | Absenderadresse überschreiben (z. B. `noreply@…`) | Absender des Dokuments |
 | `--rate` | Mails pro Sekunde | 20 |
@@ -125,11 +127,25 @@ Textteil und ob sich jeder PDF-Anhang öffnen lässt; Exit-Code 1 bei Befunden.
 
 ```ini
 MAIL_TO=rechnungen@olwe.de
-SMTP_HOST=          # z. B. smtp.ionos.de
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
-SMTP_FROM=          # optional, sonst Absender des Dokuments
+SMTP_HOST=mxe9c5.netcup.net      # Postausgangsserver, Authentifizierung erforderlich
+SMTP_PORT=587                    # STARTTLS; alternativ 465 mit SMTP_SSL=true
+SMTP_USER=pdfcloud-pro@olwe.de
+SMTP_PASS=                       # ← nur dieses Feld fehlt noch
+SMTP_FROM=pdfcloud-pro@olwe.de
+```
+
+Steht `SMTP_FROM`, wird diese Adresse als Absender gesetzt (Envelope und Header) — der **Anzeigename**
+bleibt der Name der erfundenen Firma, die Adresse kommt aus dem eigenen Konto. Ohne das würde der
+Fremd-Absender an SPF/DKIM scheitern.
+
+Solange das Passwort fehlt, meldet der Test genau das (und sonst nichts):
+
+```
+$ python mail.py --check-connection
+Konfiguration geladen: .../mail.env
+SMTP: mxe9c5.netcup.net:587 als pdfcloud-pro@olwe.de → Empfänger rechnungen@olwe.de, 5 Mail(s)
+  Server: ESMTP · Verschlüsselung: STARTTLS · Anmeldemethoden:  DIGEST-MD5 CRAM-MD5 PLAIN LOGIN
+FEHLER: In mail.env fehlt noch: SMTP_PASS — Anmeldung daher nicht möglich.
 ```
 
 Sobald Host/Benutzer/Passwort eingetragen sind:

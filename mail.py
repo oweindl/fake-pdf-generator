@@ -147,15 +147,17 @@ def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elekt
     body = text + signatur
 
     msg = EmailMessage()
+    anzeigename = ctx["absender"][0]
+    absender_adresse = von_adresse or ctx["absender"][6]
     msg["To"] = f"{zielname} <{ziel_adresse}>" if zielname else ziel_adresse
-    msg["From"] = von_adresse or f"{ctx['absender'][0]} <{ctx['absender'][6]}>"
+    msg["From"] = f"{anzeigename} <{absender_adresse}>"
     msg["Subject"] = betreff if text_rng.random() > 0.18 else f"AW: {betreff}"
     zeitpunkt = datetime.combine(ctx["datum"], dtime(text_rng.randint(6, 20), text_rng.randint(0, 59),
                                                     text_rng.randint(0, 59)))
     # timestamp() statt Ordinaltag * 86400 — Windows kann Zeitstempel außerhalb ~1970..3000 nicht umrechnen
     msg["Date"] = formatdate(zeitpunkt.timestamp(), localtime=True)
-    msg["Message-ID"] = make_msgid(domain=ctx["absender"][6].split("@")[-1])
-    msg["Reply-To"] = ctx["absender"][6]
+    msg["Message-ID"] = make_msgid(domain=absender_adresse.split("@")[-1])
+    msg["Reply-To"] = absender_adresse
 
     anhang_gewuenscht = text_rng.random() < 0.78
     if text_rng.random() < 0.3 and anhang_gewuenscht:
@@ -285,6 +287,11 @@ def main():
     ap.add_argument("--verify", action="store_true", help="abgelegte Mails anschließend prüfen")
     ap.add_argument("--check-connection", action="store_true",
                     help="nur SMTP-Verbindung und Anmeldung prüfen, nichts senden")
+    ap.add_argument("--serve", action="store_true",
+                    help="nur den lokalen SMTP-Sink betreiben und auf Post warten (kein Versand)")
+    ap.add_argument("--serve-seconds", type=float, default=0, help="Laufzeit für --serve (0 = bis Strg-C)")
+    ap.add_argument("--no-auth", action="store_true",
+                    help="ohne Anmeldung senden (für lokale Testserver wie den eigenen Sink)")
     a = ap.parse_args()
 
     # Reihenfolge: Kommandozeile > Umgebungsvariable > mail.env
@@ -307,6 +314,24 @@ def main():
     else:
         zielname, zieladresse = "", a.to.strip()
 
+    if a.serve:
+        import time as _t
+        dienst = baue_sink(a.mail_dir)
+        dienst.start()
+        port = os.environ.get("MAIL_SINK_PORT", 8026)
+        print(f"SMTP-Sink läuft auf 127.0.0.1:{port}, legt Mails in {os.path.abspath(a.mail_dir)} ab.")
+        try:
+            if a.serve_seconds:
+                _t.sleep(a.serve_seconds)
+            else:
+                while True:
+                    _t.sleep(1)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            dienst.stop()
+        return 0
+
     controller = None
     if a.transport == "sink":
         controller = baue_sink(a.mail_dir)
@@ -322,18 +347,37 @@ def main():
                   file=sys.stderr)
             return 2
         print(f"SMTP: {a.smtp_host}:{a.smtp_port} als {a.smtp_user or '(ohne Anmeldung)'} "
-              f"→ Empfänger {zieladresse}, {a.count} Mail(s)")
+              f"→ Empfänger {zieladresse}, {a.count} Mail(s)", flush=True)
         if a.smtp_ssl or a.smtp_port == 465:
             verbindung = smtplib.SMTP_SSL(a.smtp_host, a.smtp_port, timeout=30)
+            verschluesselt = "TLS (implizit)"
+            verbindung.ehlo()
         else:
             verbindung = smtplib.SMTP(a.smtp_host, a.smtp_port, timeout=30)
-            if a.smtp_port != 25 and verbindung.has_extn("starttls"):
+            verschluesselt = "unverschlüsselt"
+            verbindung.ehlo()  # erst EHLO, sonst sind die Fähigkeiten des Servers unbekannt
+            if verbindung.has_extn("starttls"):
                 verbindung.starttls()
-        verbindung.ehlo()
-        if a.smtp_user:
+                verbindung.ehlo()
+                verschluesselt = "STARTTLS"
+            elif a.smtp_host not in ("127.0.0.1", "localhost"):
+                print("WARNUNG: Server bietet kein STARTTLS — Anmeldung liefe unverschlüsselt.",
+                      file=sys.stderr)
+        if not a.quiet:
+            print(f"  Server: {'ESMTP' if verbindung.does_esmtp else 'SMTP'} · Verschlüsselung: {verschluesselt} · "
+                  f"Anmeldemethoden: {verbindung.esmtp_features.get('auth', 'keine')}", flush=True)
+        fehlend = [] if a.no_auth else [n for n, v in (("SMTP_HOST", a.smtp_host), ("SMTP_USER", a.smtp_user),
+                                                       ("SMTP_PASS", a.smtp_pass)) if not v]
+        if fehlend:
+            print(f"FEHLER: In mail.env fehlt noch: {', '.join(fehlend)} — Anmeldung daher nicht möglich.",
+                  file=sys.stderr)
+            verbindung.quit()
+            return 2
+        if a.smtp_user and not a.no_auth:
             verbindung.login(a.smtp_user, a.smtp_pass)
         if a.check_connection:
-            print("Verbindung und Anmeldung in Ordnung — es wurde nichts gesendet.")
+            print(f"Verbindung und Anmeldung in Ordnung ({a.smtp_user} bei {a.smtp_host}) — "
+                  f"es wurde nichts gesendet.")
             verbindung.quit()
             return 0
     elif a.transport == "sink":
@@ -350,7 +394,7 @@ def main():
                 if a.transport == "file":
                     ordner.speichere(msg, i + 1)
                 else:
-                    verbindung.send_message(msg)
+                    verbindung.send_message(msg, from_addr=a.von or None)
                 gesendet += 1
             except Exception as exc:  # noqa: BLE001
                 fehler.append(f"{i+1}: {type(exc).__name__}: {exc}")
