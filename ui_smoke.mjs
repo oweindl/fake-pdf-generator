@@ -5,13 +5,16 @@
 // Oberflächen-JavaScript gegen einen selbst gestarteten panel.py aus. Damit fallen
 // Fehler wie "null.value" (Feld im Formular fehlt) und falsch zusammengesetzte
 // Aufträge auf, ohne dass ein Browser nötig ist.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { setTimeout as schlaf } from 'node:timers/promises';
 
 const PORT = 8799;
 const BASIS = `http://127.0.0.1:${PORT}`;
-const PY = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+// In einer venv-Installation liegt Python dort, in CI (systemweite Installation) im PATH
+const PY = process.platform === 'win32'
+  ? (existsSync('.venv/Scripts/python.exe') ? '.venv/Scripts/python.exe' : 'python')
+  : (existsSync('.venv/bin/python') ? '.venv/bin/python' : 'python3');
 const ZIEL = (process.env.TMPDIR || process.env.TEMP || '/tmp').replace(/\\/g, '/') + '/leitstand_ui_smoke';
 
 const html = readFileSync('panel.html', 'utf8');
