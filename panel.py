@@ -316,6 +316,10 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     subprocess.Popen(["xdg-open", ziel])
                 self._json(200, {"ok": True, "ordner": ziel})
+            elif pfad_url.path == "/api/quit":
+                # Beenden aus der Oberfläche heraus: shutdown() muss aus einem anderen Thread kommen
+                self._json(200, {"ok": True, "hinweis": "Leitstand wird beendet"})
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
             elif pfad_url.path == "/api/selftest":
                 self._json(200, selftest())
             else:
@@ -383,6 +387,7 @@ def main():
     url = f"http://{a.host}:{a.port}/"
     print(f"Leitstand läuft: {url}\nArbeitsordner des Generators: {HIER}\nBeenden mit Strg-C")
     print(f"Aktionen: {', '.join(AKTIONEN)}")
+    print("Beenden: Strg-C hier, der Knopf \"Beenden\" in der Oberfläche oder leitstand-stop.cmd")
     if not a.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:

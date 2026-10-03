@@ -102,6 +102,22 @@ Kleine lokale Oberfläche mit Formularen, Live-Ausgabe, Stop-Knopf und Liste der
 | Mailserver & Postfach | Anmeldung prüfen, Empfängeradresse prüfen, neueste Mails ansehen |
 | Testlauf & Testserver | kompletter Testlauf (optional mit echter Testmail), SMTP-Testserver starten |
 
+### Starten und beenden (auch außerhalb einer Sitzung)
+
+Der Ordner ist selbsttragend: auf die Zielmaschine kopieren, beim ersten Start richten die Wrapper
+`.venv` und die Abhängigkeiten selbst ein.
+
+| Wie | Start | Beenden |
+|---|---|---|
+| Explorer (Windows) | `leitstand.cmd` doppelklicken — Fenster bleibt offen, Browser öffnet sich | Knopf **Beenden**, Strg-C oder Fenster schließen |
+| Terminal | `.venv\Scripts\python panel.py --port 8765` | Strg-C |
+| ohne Fenster (läuft weiter, wenn das Terminal schließt) | `start "" ".venv\Scripts\pythonw.exe" panel.py --no-browser` | Knopf **Beenden** oder `leitstand-stop.cmd` |
+| Linux/macOS | `./leitstand.sh` | Strg-C oder `./leitstand-stop.sh` |
+
+`leitstand-stop.cmd [Port]` findet den Prozess, der auf dem Port lauscht, und beendet ihn — auch bei
+einem Start ohne Fenster (Standardport 8765). Notnagel von Hand:
+`netstat -ano | findstr :8765` → `taskkill /PID <PID> /F`.
+
 Der Server bindet nur an `127.0.0.1`, braucht keine Anmeldung und führt **ausschließlich fest
 verdrahtete Kommandos** aus: Aktionen werden als Argumentlisten zusammengesetzt (keine Shell),
 Zahlen auf erlaubte Bereiche geprüft, Pfade auf Steuerzeichen. Feldwerte merkt sich der Browser

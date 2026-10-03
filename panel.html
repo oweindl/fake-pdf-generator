@@ -66,6 +66,7 @@
   <div style="flex:1"></div>
   <button id="btn-stop" disabled>Stoppen</button>
   <button id="btn-open">Zielordner öffnen</button>
+  <button id="btn-quit" title="Beendet den Server (nicht nur die Seite)">Beenden</button>
 </header>
 
 <main>
@@ -225,6 +226,15 @@ document.querySelectorAll("button[data-aktion]").forEach((knopf) => {
 $("btn-stop").addEventListener("click", async () => {
   await fetch("/api/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
   aktualisiere();
+});
+
+$("btn-quit").addEventListener("click", async () => {
+  if (!confirm("Leitstand-Server beenden? Laufende Kommandos werden gestoppt.")) return;
+  zeige("d-fehler", "Leitstand wird beendet … dann Fenster schließen.", "ok");
+  try { await fetch("/api/quit", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); }
+  catch (e) { /* Server ist schon weg */ }
+  document.getElementById("status-pill").textContent = "beendet";
+  document.getElementById("status-pill").className = "pill";
 });
 
 $("btn-open").addEventListener("click", async () => {
