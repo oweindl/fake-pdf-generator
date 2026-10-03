@@ -30,6 +30,60 @@ Es besteht kein Personenbezug.
 
 Richtwerte (12 Prozesse, Windows): **10.000 PDFs ≈ 38 MB, ≈ 12.700 Seiten, ~18 Sekunden, 0 Fehler.**
 
+## Kommandoübersicht
+
+```bash
+# --- Dateien ---------------------------------------------------------------
+python gen.py --out D:/pdf-temp --count 10000 --seed 20260927 --jobs 12   # großer Bestand, Jahr/Monat
+python gen.py --out ./eingang   --count 5 --flat                        # 5 Dateien flach (Watchfolder)
+python gen.py --out ./heute     --count 20 --flat --document-today      # nur mit heutigem Datum
+python check.py ./out                                                    # Bestand prüfen (Exit 1 bei Befund)
+
+# --- Mails (Empfänger steht in mail.env) -----------------------------------
+python mail.py --count 5 --mail-dir ./mails --verify                     # .eml ablegen, kein Konto
+python mail.py --count 20 --transport sink --verify                      # über lokalen SMTP-Server
+python mail.py --transport smtp --count 1                                # echt senden (Konto nötig)
+python mail.py --transport smtp --count 1 --document-today               # Dokument im Anhang auf heute
+python mail.py --count 5 --date-from-document                            # Kopf mit Dokumentdatum
+python mail.py --check-connection                                        # Anmeldung testen, sendet nichts
+python mail.py --check-recipient                                         # existiert der Empfänger?
+python mail.py --verify-imap --count 1                                   # Zustellung im Postfach nachsehen
+python mail.py --imap-list 10                                            # Postfach ansehen
+python mail.py --serve --serve-seconds 120                               # nur Sink betreiben (Testserver)
+
+# --- alles auf einmal ------------------------------------------------------
+python testrun.py            # 8 Kombinationen durchprüfen (Dateien, Mails, Datumsarten, SMTP-Pfad)
+python testrun.py --live     # zusätzlich echte Anmeldung und eine Testmail
+./testlauf.sh                # dasselbe, richtet bei Bedarf .venv und Abhängigkeiten ein
+testlauf.cmd                 # Windows-Variante
+```
+
+## Testlauf über alle Kombinationen
+
+`testrun.py` fährt die Betriebsarten als echte Kommandozeilenaufrufe durch und meldet PASS/FAIL:
+
+| # | Schritt | Prüft |
+|---|---|---|
+| 1 | Dateien Jahr/Monat, 400 Stück | alle 20 Dokumenttypen, 45 Monatsordner, `check.py` fehlerfrei |
+| 2 | Dateien flach, 50 Stück | keine Unterordner, `check.py` fehlerfrei |
+| 3 | Dateien `--document-today`, 20 Stück | Dokumentdatum = heute |
+| 4 | Mails als `.eml`, 20 Stück | Empfänger, Text, PDF-Anhänge (`--verify`) |
+| 5 | Mails über lokalen SMTP-Sink, 10 Stück | echter SMTP-Pfad ohne Konto |
+| 6 | Mails über `smtp`-Transport gegen Sink | Envelope, Absenderadresse, Anzeigename, Anhang |
+| 7 | Mails `--document-today`, 10 Stück | Anhänge tragen das laufende Jahr |
+| 8 | Mail-Kopf-Datum | jetzt (Δ < 5 min) vs. `--date-from-document` (Vergangenheit) |
+| 9 | `--live` | SMTP-Anmeldung, Empfängerprüfung, 1 echte Testmail |
+
+```bash
+python testrun.py                 # ohne echten Versand, räumt den Arbeitsordner danach weg
+python testrun.py --keep          # Arbeitsordner behalten
+python testrun.py --out D:/test   # eigener Arbeitsordner
+python testrun.py --live          # schickt wirklich eine Mail an MAIL_TO
+```
+
+Exit-Code 1, sobald ein Schritt fehlschlägt — in CI und Skripten auswertbar. In
+`.github/workflows/ci.yml` läuft er bei jedem Push auf Python 3.12, 3.13 und 3.14.
+
 ## Installation
 
 ```bash

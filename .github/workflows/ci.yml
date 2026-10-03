@@ -48,6 +48,9 @@ jobs:
           python mail.py --to eingang@vollmer-elektro.de --count 10 --seed 5 \
             --transport sink --mail-dir mails-sink --verify --quiet
 
+      - name: Kompletter Testlauf über alle Betriebsarten
+        run: python testrun.py
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
