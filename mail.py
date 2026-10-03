@@ -391,17 +391,10 @@ def main():
     a.imap_port = a.imap_port or int(cfg.get("IMAP_PORT") or os.environ.get("IMAP_PORT") or 993)
     a.imap_user = a.imap_user or cfg.get("IMAP_USER") or os.environ.get("IMAP_USER") or a.smtp_user
     a.imap_pass = a.imap_pass or cfg.get("IMAP_PASS") or os.environ.get("IMAP_PASS") or a.smtp_pass
-    if not a.to:
-        print("FEHLER: kein Empfänger — --to angeben oder MAIL_TO in mail.env setzen", file=sys.stderr)
-        return 2
     if not a.quiet and cfg_pfad:
         print(f"Konfiguration geladen: {cfg_pfad}")
 
-    if "<" in a.to and a.to.rstrip().endswith(">"):
-        zielname, zieladresse = a.to.split("<")[0].strip(), a.to.split("<")[-1].rstrip(">").strip()
-    else:
-        zielname, zieladresse = "", a.to.strip()
-
+    # Dienende Betriebsarten brauchen keinen Empfänger
     if a.imap_list:
         return imap_pruefe(a, [], 0)
 
@@ -422,6 +415,15 @@ def main():
         finally:
             dienst.stop()
         return 0
+
+    if not a.to:
+        print("FEHLER: kein Empfänger — --to angeben oder MAIL_TO in mail.env setzen", file=sys.stderr)
+        return 2
+
+    if "<" in a.to and a.to.rstrip().endswith(">"):
+        zielname, zieladresse = a.to.split("<")[0].strip(), a.to.split("<")[-1].rstrip(">").strip()
+    else:
+        zielname, zieladresse = "", a.to.strip()
 
     controller = None
     if a.transport == "sink":
