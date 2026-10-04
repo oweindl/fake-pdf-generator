@@ -200,10 +200,12 @@ def s_dateien_verschluesselt(ordner, seed):
         return False, f"gen.py Exit {code}: {aus.strip()[:120]}"
     ohne, _ = lauf("check.py", ziel)
     mit, _ = lauf("check.py", ziel, "--passwort", pw)
-    gesperrt = sum(1 for p in glob.glob(os.path.join(ziel, "*.pdf")) if PdfReader(p).is_encrypted)
+    # Linux-glob ist groß-/kleinschreibungssensitiv: .PDF/.Pdf sonst nicht mitgezählt
+    dateien = [os.path.join(ziel, f) for f in os.listdir(ziel) if f.lower().endswith(".pdf")]
+    gesperrt = sum(1 for p in dateien if PdfReader(p).is_encrypted)
     entsperrt = os.path.join(ordner, "entsperrt")
     code_u, _ = lauf("unlock.py", ziel, "--passwort", pw, "--ziel", entsperrt, "--quiet")
-    kopien = glob.glob(os.path.join(entsperrt, "*.pdf"))
+    kopien = [os.path.join(entsperrt, f) for f in os.listdir(entsperrt) if f.lower().endswith(".pdf")]
     lesbar = sum(1 for p in kopien
                  if not PdfReader(p).is_encrypted and len(PdfReader(p).pages) > 0)
     return (code == 0 and ohne == 0 and mit == 0 and gesperrt == 20 and code_u == 0
