@@ -188,6 +188,23 @@ def s_mails_dokument_heute(ordner, seed):
     return (jahre == {heute}), f"Dokumentjahre im Anhang: {sorted(jahre)}, erwartet {heute}"
 
 
+def s_namensschema(ordner, seed):
+    """Namensschema: alle Dateien müssen dem Muster folgen (okiscan*.pdf)."""
+    import re
+    ziel = os.path.join(ordner, "namen")
+    code, aus = lauf("gen.py", "--out", ziel, "--count", "25", "--seed", str(seed), "--flat",
+                     "--jobs", "4", "--namensschema", "okiscan*.pdf", "--quiet")
+    if code != 0:
+        return False, f"gen.py Exit {code}: {aus.strip()[:120]}"
+    namen = [f for f in os.listdir(ziel) if f.lower().endswith(".pdf")]
+    passt = [n for n in namen if re.fullmatch(r"okiscan\d+\.pdf", n)]
+    code2, _ = lauf("check.py", ziel)
+    nummern = sorted(int(re.findall(r"\d+", n)[0]) for n in passt)
+    return (code2 == 0 and len(namen) == 25 and len(passt) == 25
+            and nummern == list(range(1, 26))), \
+        f"{len(passt)}/{len(namen)} Dateien nach Muster, Nummern 1..{nummern[-1] if nummern else 0}, check.py Exit {code2}"
+
+
 def s_dateien_verschluesselt(ordner, seed):
     """Verschlüsselte PDFs: prüfbar nur mit Passwort, entsperrbare Kopien."""
     import io
@@ -288,6 +305,7 @@ def main():
         ("Mails: lokaler SMTP-Sink, 10 Stück", s_mails_sink),
         ("Mails: smtp-Pfad gegen Sink (Absender, Envelope, Anhang)", s_mails_smtp_pfad),
         ("Mails: --document-today, 10 Stück", s_mails_dokument_heute),
+        ("Dateien: Namensschema okiscan*.pdf", s_namensschema),
         ("Dateien: verschlüsselt (Passwort, Rechte, Entsperren)", s_dateien_verschluesselt),
         ("Mails: Datum im Kopf (jetzt vs. --date-from-document)", s_mails_datum),
         ("Mails: verschlüsselter Anhang", s_mails_verschluesselt),

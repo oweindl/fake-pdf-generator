@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import re
 import os
 import random
 import sys
@@ -731,7 +732,32 @@ def nrm(s):
     return s
 
 
-def make_name(rng, typ, ctx, counter):
+def make_name(rng, typ, ctx, counter, schema=None, gesamt=1):
+    """Dateiname: ohne Schema chaotisch-realistisch, mit Schema nach Vorgabe.
+
+    Schema-Platzhalter: * (laufende Nummer, Breite aus der Gesamtzahl), {n}, {n:05d},
+    {datum}, {jahr}, {monat}, {tag}, {typ}, {az}, {partner}. Beispiel: "okiscan*.pdf".
+    """
+    if schema:
+        breite = max(3, len(str(gesamt)))
+        name = schema
+        name = re.sub(r"\{n:0(\d)d\}", lambda m: str(counter).zfill(int(m.group(1))), name)
+        for platzhalter, wert in (("*", str(counter).zfill(breite)), ("{n}", str(counter)),
+                                  ("{datum}", ctx["datum"].strftime("%Y-%m-%d")),
+                                  ("{jahr}", str(ctx["datum"].year)),
+                                  ("{monat}", f"{ctx['datum'].month:02d}"),
+                                  ("{tag}", f"{ctx['datum'].day:02d}"),
+                                  ("{typ}", typ), ("{az}", ctx["az"]),
+                                  ("{partner}", nrm(ctx["absender"][0])[:24])):
+            name = name.replace(platzhalter, wert)
+        if not name.lower().endswith(".pdf"):
+            name += ".pdf"
+        name = re.sub(r'[<>:"/\\|?*]', "-", name).strip()[:110]
+        return name
+    return _chaotischer_name(rng, typ, ctx, counter)
+
+
+def _chaotischer_name(rng, typ, ctx, counter):
     d = ctx["datum"]
     kunde = nrm(ctx["empf"]["name"])
     kurz = kunde.split()[0]
@@ -870,6 +896,9 @@ def main():
     ap.add_argument("--flat", action="store_true", help="ohne Jahr/Monat-Unterordner ablegen")
     ap.add_argument("--document-today", action="store_true",
                     help="Dokumente auf heute datieren statt auf den Zeitraum 2023-2026")
+    ap.add_argument("--namensschema", "--naming", dest="namensschema", default=None, metavar="MUSTER",
+                    help='Dateinamensmuster, z. B. "okiscan*.pdf" (* = fortlaufende Nummer) '
+                         'oder "rechnung_{datum}_{n:05d}.pdf"')
     ap.add_argument("--verschluesseln", "--encrypt", dest="verschluesseln", default=None,
                     metavar="PASSWORT", help="PDFs mit diesem Benutzerpasswort verschlüsseln")
     ap.add_argument("--verschluesseln-owner", dest="verschluesseln_owner", default=None,
@@ -887,7 +916,7 @@ def main():
     for i in range(a.count):
         s = rng.randint(1, 2 ** 31 - 1)
         r2, typ, _today, tmp_ctx, _font = derive(s, a.document_today)
-        name = make_name(r2, typ, tmp_ctx, i + 1)
+        name = make_name(r2, typ, tmp_ctx, i + 1, a.namensschema, a.count)
         base, ext = os.path.splitext(name)
         ordk = "" if a.flat else f"{_today.year:04d}/{_today.month:02d}/"
         k = ordk + name.lower()

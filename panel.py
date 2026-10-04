@@ -144,6 +144,9 @@ def a_dateien(p):
         index_pfad = os.path.join(index_ordner, f"lauf_{time.strftime('%Y%m%d_%H%M%S')}.csv")
     if index_pfad:
         argv += ["--index", index_pfad]
+    schema = (p.get("schema") or "").strip()
+    if schema:
+        argv += ["--namensschema", schema]
     if flag(p.get("ver")):
         pw = (p.get("pw") or "").strip()
         if not pw:
@@ -152,6 +155,7 @@ def a_dateien(p):
                  "--verschluesseln-rechte", auswahl(p.get("rechte"), "Rechte",
                                                     ["drucken", "alles", "nichts"], "drucken")]
     return argv, (f"{count} PDFs nach {ziel} ({layout}, {datum}"
+                  + (f", Namen nach '{schema}'" if schema else "")
                   + (", verschlüsselt" if flag(p.get("ver")) else "")
                   + (", Index im Zielordner" if index_im_ziel else f", Index: {index_pfad}") + ")")
 

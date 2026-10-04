@@ -93,6 +93,7 @@
         <div class="schalter"><input type="checkbox" id="d-ver"><label for="d-ver" style="margin:0">PDFs
           verschlüsseln</label></div></div>
       <div><label for="d-pw">Passwort für PDFs</label><input id="d-pw" type="password" placeholder="nur bei Verschlüsselung"></div>
+      <div><label for="d-schema">Dateinamenschema</label><input id="d-schema" placeholder="leer = gemischt, z. B. okiscan*.pdf"></div>
       <div><label for="d-rechte">Rechte in verschlüsselten PDFs</label>
         <select id="d-rechte"><option value="drucken">ansehen und drucken</option>
           <option value="alles">alles erlaubt</option><option value="nichts">nichts erlaubt</option></select></div>
@@ -200,7 +201,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum","d-index","d-ver","d-pw","d-rechte",
+const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum","d-index","d-ver","d-pw","d-rechte","d-schema",
                 "m-count","m-seed","m-transport","m-datum","m-mailordner","m-dokument-heute",
                 "m-ver","m-pw","m-rechte","p-was","p-anzahl","t-ordner","t-sink","t-live","t-keep",
                 "u-ordner","u-pw","u-ziel"];
@@ -227,7 +228,8 @@ function parameter(aktion, formPraefix, nur) {
     ordner: nimm("ordner"), count: nimm("count"), seed: nimm("seed"), jobs: nimm("jobs"),
     layout: nimm("layout"), datum: nimm("datum"),
     index: $(formPraefix + "index").checked,
-    ver: $(formPraefix + "ver").checked, pw: nimm("pw"), rechte: nimm("rechte") };
+    ver: $(formPraefix + "ver").checked, pw: nimm("pw"), rechte: nimm("rechte"),
+    schema: nimm("schema") };
   if (aktion === "mails") return {
     count: nimm("count"), seed: nimm("seed"), transport: nimm("transport"), datum: nimm("datum"),
     mailordner: nimm("mailordner"), dokument_heute: $(formPraefix + "dokument-heute").checked,

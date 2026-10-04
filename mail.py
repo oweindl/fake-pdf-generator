@@ -138,7 +138,8 @@ def pdf_bytes(rng, typ, ctx, st, titel, versch=None):
 
 
 def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elektrotechnik GmbH",
-              dokument_heute=False, datum_aus_dokument=False, versch=None, passwort_im_text=False):
+              dokument_heute=False, datum_aus_dokument=False, versch=None, passwort_im_text=False,
+              namensschema=None, nummer_der_mail=1, gesamt=1):
     rng, typ, today, ctx, font = G.derive(seed, dokument_heute)
     st = G.basis_styles(font)
     text_rng = random.Random(seed ^ 0x5EED)
@@ -189,7 +190,8 @@ def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elekt
                                               tel=ctx["absender"][5], mail=ctx["absender"][6]), subtype="html")
     else:
         msg.set_content(body)
-    dateiname = G.make_name(random.Random(seed ^ 0xBEEF), typ, ctx, seed % 9999)
+    dateiname = G.make_name(random.Random(seed ^ 0xBEEF), typ, ctx, nummer_der_mail,
+                            namensschema, gesamt)
     msg.add_attachment(daten, maintype="application", subtype="pdf", filename=dateiname)
     return msg, typ, betreff, dateiname
 
@@ -364,6 +366,8 @@ def main():
                     help="fester Empfänger (Adresse oder Anzeigename <adresse>); sonst MAIL_TO aus mail.env")
     ap.add_argument("--count", type=int, default=5, help="Anzahl Mails (Standard 5)")
     ap.add_argument("--seed", type=int, default=20260927)
+    ap.add_argument("--namensschema", "--naming", dest="namensschema", default=None, metavar="MUSTER",
+                    help='Muster für den Anhangsnamen, z. B. "okiscan*.pdf"')
     ap.add_argument("--verschluesseln", "--encrypt", dest="verschluesseln", default=None,
                     metavar="PASSWORT", help="PDF-Anhang mit diesem Passwort verschlüsseln")
     ap.add_argument("--verschluesseln-owner", dest="verschluesseln_owner", default=None)
@@ -528,7 +532,8 @@ def main():
             seed = rng_seeds.randint(1, 2 ** 31 - 1)
             msg, typ, betreff, anhang = baue_mail(None, seed, zieladresse, a.von, zielname,
                                                   a.document_today, a.date_from_document,
-                                                  versch, a.passwort_im_text)
+                                                  versch, a.passwort_im_text, a.namensschema,
+                                                  i + 1, a.count)
             try:
                 if a.transport == "file":
                     ordner.speichere(msg, i + 1)

@@ -163,6 +163,7 @@ python gen.py --out ./out --count 500 --index ./index.csv
 | `--seed` | Basis-Seed; gleicher Seed = identischer Bestand | 20260927 |
 | `--jobs` | Parallelprozesse | CPU-Kerne − 2 |
 | `--flat` | keine Jahr/Monat-Unterordner | aus |
+| `--namensschema` | Dateinamensmuster, z. B. `okiscan*.pdf` (leer = gemischte Namen) | aus |
 | `--verschluesseln` | PDFs mit diesem Passwort verschlüsseln | aus |
 | `--verschluesseln-owner` | Eigentümerpasswort | `<Passwort>-owner` |
 | `--verschluesseln-rechte` | `drucken`, `alles` oder `nichts` | drucken |
@@ -300,6 +301,33 @@ Transport `file` und `sink` brauchen **kein E-Mail-Konto**: Dateien bzw. `127.0.
 Ein Postfach auf einem fremden Server lässt sich ohne Zugangsdaten nicht beliefern — für echte
 Zustellung ist ein Account, ein Testdienst (MailHog/Mailtrap/Postmark) oder ein eigener Relay nötig.
 Bei `--transport smtp` wird **wirklich versendet**; das Skript gibt vorher Host, Empfänger und Anzahl aus.
+
+## Dateinamen
+
+Ohne Vorgabe entstehen gemischte, realistisch-chaotische Namen (`Scan_2024-03-12_0007.pdf`,
+`SCAN71264.PDF`, `Kopie von rechnung_612.pdf`, `.pdf/.PDF/.Pdf`). Mit `--namensschema` folgen alle
+Dateien einem Muster:
+
+```bash
+python gen.py --out D:/pdf-temp --count 500 --namensschema "okiscan*.pdf"
+python gen.py --out D:/pdf-temp --count 500 --namensschema "rechnung_{datum}_{n:05d}.pdf"
+python gen.py --out D:/pdf-temp --count 20  --namensschema "scan-{jahr}-{monat}-{tag}_{n:04d}.pdf"
+```
+
+| Platzhalter | Bedeutung |
+|---|---|
+| `*` | fortlaufende Nummer, Breite automatisch aus `--count` (bei 10.000 fünf Stellen) |
+| `{n}` | fortlaufende Nummer ohne feste Breite |
+| `{n:05d}` | fortlaufende Nummer mit fester Breite (fünf Stellen) |
+| `{datum}` | Dokumentdatum `JJJJ-MM-TT` |
+| `{jahr}`, `{monat}`, `{tag}` | Jahr, Monat, Tag des Dokumentdatums |
+| `{typ}` | Dokumenttyp (`rechnung`, `mahnung`, …) |
+| `{az}` | Aktenzeichen des Vorgangs |
+| `{partner}` | Absenderfirma (ohne Umlaute) |
+
+Ohne `.pdf` im Muster wird die Endung ergänzt; unzulässige Zeichen werden ersetzt. `mail.py`
+versteht dasselbe Muster für den Anhangsnamen (`--namensschema`), der Leitstand hat ein Feld
+„Dateinamenschema“.
 
 ## Verschlüsselte PDFs
 

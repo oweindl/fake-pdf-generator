@@ -83,7 +83,7 @@ const pruefe = (name, ok, detail = '') => tests.push({ name, ok: !!ok, detail })
 const testJs = `
 return (async () => {
   const erwartet = {
-    dateien: ['ordner', 'count', 'seed', 'jobs', 'layout', 'datum', 'index', 'ver', 'pw', 'rechte'],
+    dateien: ['ordner', 'count', 'seed', 'jobs', 'layout', 'datum', 'index', 'ver', 'pw', 'rechte', 'schema'],
     pruefen: ['ordner', 'pw'],
     mails: ['count', 'seed', 'transport', 'datum', 'mailordner', 'dokument_heute', 'ver', 'pw', 'rechte'],
     mail_check: ['was'],
