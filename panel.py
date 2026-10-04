@@ -309,10 +309,15 @@ def status():
     with sperre:
         p = zustand["prozess"]
         laeuft = bool(p and p.poll() is None)
+        exit_code = zustand["exit"]
+        # Wettlauf: der Prozess ist schon beendet, der Lesethread hat den Exit-Code aber
+        # noch nicht eingetragen. Dann direkt den Rückgabecode des Prozesses melden.
+        if not laeuft and exit_code is None and p is not None:
+            exit_code = p.returncode
         return {
             "laeuft": laeuft,
             "aktion": zustand["aktion"],
-            "exit": None if laeuft else zustand["exit"],
+            "exit": None if laeuft else exit_code,
             "dauer": round((zustand["ende"] or time.time()) - zustand["start"], 1) if zustand["start"] else None,
             "zeilen": list(zustand["zeilen"])[-400:],
             "historie": list(zustand["historie"])[:10],

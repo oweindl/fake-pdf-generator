@@ -126,7 +126,8 @@ return (async () => {
     ordner: ziel, count: '6', seed: '4711', jobs: '2', layout: 'flach', datum: 'heute' } }) });
   for (let i = 0; i < 80; i++) {
     await aktualisiere();
-    if (document.getElementById('status-pill').textContent !== 'läuft') break;
+    const pill = document.getElementById('status-pill').textContent;
+    if (pill === 'fertig' || pill.startsWith('Fehler')) break;   // eindeutiges Ergebnis abwarten
     await new Promise((r) => setTimeout(r, 400));
   }
   // Der Server muss den Index außerhalb des Zielordners ablegen
