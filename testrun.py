@@ -133,7 +133,8 @@ def s_mails_eml(ordner, seed):
     n = zaehle_eml(ziel)
     anhaenge = sum(1 for p in glob.glob(os.path.join(ziel, "*.eml"))
                    if any(t.get_content_type() == "application/pdf" for t in lies_eml(p).iter_attachments()))
-    return (code == 0 and n == 20), f"{n} .eml, davon {anhaenge} mit PDF-Anhang, Exit {code}"
+    return (code == 0 and n == 20 and anhaenge == n), \
+        f"{n} .eml, davon {anhaenge} mit PDF-Anhang (jede Mail hat einen), Exit {code}"
 
 
 def s_mails_sink(ordner, seed):
@@ -187,6 +188,53 @@ def s_mails_dokument_heute(ordner, seed):
     return (jahre == {heute}), f"Dokumentjahre im Anhang: {sorted(jahre)}, erwartet {heute}"
 
 
+def s_dateien_verschluesselt(ordner, seed):
+    """Verschlüsselte PDFs: prüfbar nur mit Passwort, entsperrbare Kopien."""
+    import io
+    from pypdf import PdfReader
+    ziel = os.path.join(ordner, "dateien_verschluesselt")
+    pw = "RunZeit-4711"
+    code, aus = lauf("gen.py", "--out", ziel, "--count", "20", "--seed", str(seed), "--flat",
+                     "--jobs", "4", "--verschluesseln", pw, "--quiet")
+    if code != 0:
+        return False, f"gen.py Exit {code}: {aus.strip()[:120]}"
+    ohne, _ = lauf("check.py", ziel)
+    mit, _ = lauf("check.py", ziel, "--passwort", pw)
+    gesperrt = sum(1 for p in glob.glob(os.path.join(ziel, "*.pdf")) if PdfReader(p).is_encrypted)
+    entsperrt = os.path.join(ordner, "entsperrt")
+    code_u, _ = lauf("unlock.py", ziel, "--passwort", pw, "--ziel", entsperrt, "--quiet")
+    kopien = glob.glob(os.path.join(entsperrt, "*.pdf"))
+    lesbar = sum(1 for p in kopien
+                 if not PdfReader(p).is_encrypted and len(PdfReader(p).pages) > 0)
+    return (code == 0 and ohne == 0 and mit == 0 and gesperrt == 20 and code_u == 0
+            and len(kopien) == 20 and lesbar == 20), \
+        (f"{gesperrt}/20 verschlüsselt, check.py ohne Passwort Exit {ohne}, mit Passwort Exit {mit}, "
+         f"{lesbar}/{len(kopien)} entsperrte Kopien lesbar")
+
+
+def s_mails_verschluesselt(ordner, seed):
+    """Mails mit verschlüsseltem Anhang."""
+    import io
+    from pypdf import PdfReader
+    ziel = os.path.join(ordner, "mails_verschluesselt")
+    pw = "Anhang-8899"
+    code, aus = lauf("mail.py", "--to", ZIEL_MAIL, "--count", "10", "--seed", str(seed),
+                     "--mail-dir", ziel, "--verschluesseln", pw, "--verify", "--quiet")
+    n = zaehle_eml(ziel)
+    gesperrt = 0
+    for p in glob.glob(os.path.join(ziel, "*.eml")):
+        for t in lies_eml(p).iter_attachments():
+            if t.get_content_type() == "application/pdf":
+                leser = PdfReader(io.BytesIO(t.get_payload(decode=True)))
+                if leser.is_encrypted:
+                    if leser.decrypt(pw):
+                        gesperrt += 1
+                    else:
+                        gesperrt -= 100  # Passwort passt nicht -> klarer Fehlschlag unten
+    return (code == 0 and n == 10 and gesperrt == 10), \
+        f"{n} Mails, {gesperrt}/10 Anhänge verschlüsselt und mit Passwort lesbar, Exit {code}"
+
+
 def s_mails_datum(ordner, seed):
     """Standard: Kopf = jetzt. --date-from-document: Kopf = Dokumentdatum (Vergangenheit)."""
     frisch = os.path.join(ordner, "mails_datum_frisch")
@@ -238,7 +286,9 @@ def main():
         ("Mails: lokaler SMTP-Sink, 10 Stück", s_mails_sink),
         ("Mails: smtp-Pfad gegen Sink (Absender, Envelope, Anhang)", s_mails_smtp_pfad),
         ("Mails: --document-today, 10 Stück", s_mails_dokument_heute),
+        ("Dateien: verschlüsselt (Passwort, Rechte, Entsperren)", s_dateien_verschluesselt),
         ("Mails: Datum im Kopf (jetzt vs. --date-from-document)", s_mails_datum),
+        ("Mails: verschlüsselter Anhang", s_mails_verschluesselt),
     ]
     for i, (name, funktion) in enumerate(schritte, 1):
         schritt(i, name, lambda f=funktion: f(ordner, a.seed))

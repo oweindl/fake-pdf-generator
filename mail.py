@@ -129,20 +129,20 @@ HTML_RAHMEN = """<html><body style="font-family:Arial,Helvetica,sans-serif;font-
 </body></html>"""
 
 
-def pdf_bytes(rng, typ, ctx, st, titel):
+def pdf_bytes(rng, typ, ctx, st, titel, versch=None):
     """Baut das Dokument wie gen.py, aber in den Speicher statt auf die Platte."""
     story, meta = G.TYP_FUNCS[typ](rng, ctx, st)
     buf = io.BytesIO()
-    G.write_pdf(buf, story, ctx, typ, st, meta["titel"])
+    G.write_pdf(buf, story, ctx, typ, st, meta["titel"], versch)
     return buf.getvalue(), meta
 
 
 def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elektrotechnik GmbH",
-              dokument_heute=False, datum_aus_dokument=False):
+              dokument_heute=False, datum_aus_dokument=False, versch=None, passwort_im_text=False):
     rng, typ, today, ctx, font = G.derive(seed, dokument_heute)
     st = G.basis_styles(font)
     text_rng = random.Random(seed ^ 0x5EED)
-    daten, meta = pdf_bytes(rng, typ, ctx, st, "")
+    daten, meta = pdf_bytes(rng, typ, ctx, st, "", versch)
     nummer = meta["nummer"] or ctx["az"]
     betrag = G.eur(abs(meta["betrag"])) if meta["betrag"] else G.eur(round(text_rng.uniform(48, 3200), 2))
     frist = G.dt(ctx["datum"] + timedelta(days=text_rng.choice([7, 14, 21, 30])))
@@ -177,8 +177,11 @@ def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elekt
     msg["Message-ID"] = make_msgid(domain=absender_adresse.split("@")[-1])
     msg["Reply-To"] = absender_adresse
 
-    anhang_gewuenscht = text_rng.random() < 0.78
-    if text_rng.random() < 0.3 and anhang_gewuenscht:
+    # Jede Mail hat einen Anhang: Mails ohne Beleg gibt es in diesem Werkzeug nicht
+    if versch:
+        body += ("\n\nHinweis: Das Dokument im Anhang ist passwortgeschützt."
+                 + (f"\nPasswort: {versch['pw']}" if passwort_im_text else ""))
+    if text_rng.random() < 0.3:
         absaetze = "</p><p>".join(l for l in body.split("\n") if l.strip())
         msg.set_content(body)
         msg.add_alternative(HTML_RAHMEN.format(absaetze=absaetze, absender=ctx["absender"][0],
@@ -186,10 +189,9 @@ def baue_mail(rng, seed, ziel_adresse, von_adresse=None, zielname="Vollmer Elekt
                                               tel=ctx["absender"][5], mail=ctx["absender"][6]), subtype="html")
     else:
         msg.set_content(body)
-    if anhang_gewuenscht:
-        dateiname = G.make_name(random.Random(seed ^ 0xBEEF), typ, ctx, seed % 9999)
-        msg.add_attachment(daten, maintype="application", subtype="pdf", filename=dateiname)
-    return msg, typ, betreff, (dateiname if anhang_gewuenscht else None)
+    dateiname = G.make_name(random.Random(seed ^ 0xBEEF), typ, ctx, seed % 9999)
+    msg.add_attachment(daten, maintype="application", subtype="pdf", filename=dateiname)
+    return msg, typ, betreff, dateiname
 
 
 class EmlOrdner:
@@ -225,7 +227,7 @@ def baue_sink(ordner):
     return Controller(Handler(), hostname="127.0.0.1", port=int(os.environ.get("MAIL_SINK_PORT", 8026)))
 
 
-def verifiziere(ordner, ziel, erwartet):
+def verifiziere(ordner, ziel, erwartet, passwort=None):
     """Liest die abgelegten Mails zurück und prüft Empfänger, Anhänge und Text."""
     import glob
     import collections
@@ -235,7 +237,8 @@ def verifiziere(ordner, ziel, erwartet):
     from pypdf import PdfReader
 
     dateien = sorted(glob.glob(os.path.join(ordner, "*.eml")))
-    falsch_ziel, ohne_text, kaputte_pdfs, mit_anhang, betreffe, absender = [], [], [], 0, [], collections.Counter()
+    falsch_ziel, ohne_text, kaputte_pdfs, mit_anhang, verschluesselt = [], [], [], 0, 0
+    betreffe, absender = [], collections.Counter()
     for p in dateien:
         with open(p, "rb") as fh:
             msg = BytesParser(policy=policy.default).parse(fh)
@@ -249,17 +252,24 @@ def verifiziere(ordner, ziel, erwartet):
             if teil.get_content_type() == "application/pdf":
                 mit_anhang += 1
                 try:
-                    if len(PdfReader(io.BytesIO(teil.get_payload(decode=True))).pages) < 1:
+                    leser = PdfReader(io.BytesIO(teil.get_payload(decode=True)))
+                    if leser.is_encrypted:
+                        verschluesselt += 1
+                        if passwort:
+                            leser.decrypt(passwort)
+                    if len(leser.pages) < 1:
                         kaputte_pdfs.append(os.path.basename(p))
                 except Exception:  # noqa: BLE001
                     kaputte_pdfs.append(os.path.basename(p))
     print(f"Geprüft: {len(dateien)} Mails in {ordner} (erwartet {erwartet})")
     print(f"  falscher/n Empfänger: {len(falsch_ziel)} | ohne Text: {len(ohne_text)} | "
-          f"kaputte PDF-Anhänge: {len(kaputte_pdfs)} | mit PDF-Anhang: {mit_anhang}")
+          f"kaputte PDF-Anhänge: {len(kaputte_pdfs)} | mit PDF-Anhang: {mit_anhang}"
+          + (f" (davon verschlüsselt: {verschluesselt})" if verschluesselt else ""))
     print(f"  Absender: {len(absender)} verschiedene | Beispiele für Betreffzeilen:")
     for b in betreffe[:5]:
         print("    -", b)
-    return 0 if (len(dateien) == erwartet and not falsch_ziel and not ohne_text and not kaputte_pdfs) else 1
+    return 0 if (len(dateien) == erwartet and not falsch_ziel and not ohne_text
+                 and not kaputte_pdfs and mit_anhang == len(dateien)) else 1
 
 
 KONFIG_NAME = "mail.env"
@@ -354,6 +364,13 @@ def main():
                     help="fester Empfänger (Adresse oder Anzeigename <adresse>); sonst MAIL_TO aus mail.env")
     ap.add_argument("--count", type=int, default=5, help="Anzahl Mails (Standard 5)")
     ap.add_argument("--seed", type=int, default=20260927)
+    ap.add_argument("--verschluesseln", "--encrypt", dest="verschluesseln", default=None,
+                    metavar="PASSWORT", help="PDF-Anhang mit diesem Passwort verschlüsseln")
+    ap.add_argument("--verschluesseln-owner", dest="verschluesseln_owner", default=None)
+    ap.add_argument("--verschluesseln-rechte", dest="verschluesseln_rechte", default="drucken",
+                    choices=["drucken", "alles", "nichts"])
+    ap.add_argument("--passwort-im-text", action="store_true",
+                    help="Passwort im Mailtext nennen (Standard: nur Hinweis, kein Passwort)")
     ap.add_argument("--document-today", action="store_true",
                     help="auch das Dokument selbst auf heute datieren (Standard: Zeitraum 2023–2026)")
     ap.add_argument("--date-from-document", action="store_true",
@@ -404,6 +421,7 @@ def main():
     a.imap_port = a.imap_port or int(cfg.get("IMAP_PORT") or os.environ.get("IMAP_PORT") or 993)
     a.imap_user = a.imap_user or cfg.get("IMAP_USER") or os.environ.get("IMAP_USER") or a.smtp_user
     a.imap_pass = a.imap_pass or cfg.get("IMAP_PASS") or os.environ.get("IMAP_PASS") or a.smtp_pass
+    versch = G.verschluesselung(a.verschluesseln, a.verschluesseln_owner, a.verschluesseln_rechte)
     if not a.quiet and cfg_pfad:
         print(f"Konfiguration geladen: {cfg_pfad}")
 
@@ -509,7 +527,8 @@ def main():
         for i in range(a.count):
             seed = rng_seeds.randint(1, 2 ** 31 - 1)
             msg, typ, betreff, anhang = baue_mail(None, seed, zieladresse, a.von, zielname,
-                                                  a.document_today, a.date_from_document)
+                                                  a.document_today, a.date_from_document,
+                                                  versch, a.passwort_im_text)
             try:
                 if a.transport == "file":
                     ordner.speichere(msg, i + 1)
@@ -537,7 +556,8 @@ def main():
     for f in fehler[:10]:
         print("  FEHLER:", f)
     if a.verify:
-        return verifiziere(ziel_ordner, f"{zielname} <{zieladresse}>" if zielname else zieladresse, a.count)
+        return verifiziere(ziel_ordner, f"{zielname} <{zieladresse}>" if zielname else zieladresse, a.count,
+                           a.verschluesseln)
     if a.verify_imap:
         print(f"\nIMAP-Gegenprobe bei {a.imap_host}:{a.imap_port} (max. {int(a.imap_wait)} s):")
         return imap_pruefe(a, ids, a.imap_wait)

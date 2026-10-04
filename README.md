@@ -44,6 +44,8 @@ python mail.py --count 5 --mail-dir ./mails --verify                     # .eml 
 python mail.py --count 20 --transport sink --verify                      # über lokalen SMTP-Server
 python mail.py --transport smtp --count 1                                # echt senden (Konto nötig)
 python mail.py --transport smtp --count 1 --document-today               # Dokument im Anhang auf heute
+python mail.py --count 5 --verschluesseln "Geheim" --verify              # Anhang verschlüsselt
+python unlock.py ./out --passwort "Geheim"                               # lesbare Kopien erzeugen
 python mail.py --count 5 --date-from-document                            # Kopf mit Dokumentdatum
 python mail.py --check-connection                                        # Anmeldung testen, sendet nichts
 python mail.py --check-recipient                                         # existiert der Empfänger?
@@ -97,10 +99,11 @@ Kleine lokale Oberfläche mit Formularen, Live-Ausgabe, Stop-Knopf und Liste der
 
 | Bereich | Aktionen |
 |---|---|
-| PDFs erzeugen | Zielordner, Anzahl, Seed, Prozesse, Ablage (Jahr/Monat oder flach), Datum (2023–2026 oder heute) — plus „Bestand prüfen“ |
+| PDFs erzeugen | Zielordner, Anzahl, Seed, Prozesse, Ablage (Jahr/Monat oder flach), Datum (2023–2026 oder heute), Verschlüsselung mit Passwortfeld und Rechten — plus „Bestand prüfen“ (nutzt dasselbe Passwort) |
 | Mails senden | Anzahl, Seed, Transport (file/sink/smtp), Datum im Kopf, Ablage, Dokument auf heute |
 | Mailserver & Postfach | Anmeldung prüfen, Empfängeradresse prüfen, neueste Mails ansehen |
 | Testlauf & Testserver | kompletter Testlauf (optional mit echter Testmail), SMTP-Testserver starten |
+| Verschlüsselte PDFs entsperren | Ordner + Passwort → lesbare Kopien ohne Passwort (Originale bleiben) |
 
 ### Starten und beenden (auch außerhalb einer Sitzung)
 
@@ -160,6 +163,9 @@ python gen.py --out ./out --count 500 --index ./index.csv
 | `--seed` | Basis-Seed; gleicher Seed = identischer Bestand | 20260927 |
 | `--jobs` | Parallelprozesse | CPU-Kerne − 2 |
 | `--flat` | keine Jahr/Monat-Unterordner | aus |
+| `--verschluesseln` | PDFs mit diesem Passwort verschlüsseln | aus |
+| `--verschluesseln-owner` | Eigentümerpasswort | `<Passwort>-owner` |
+| `--verschluesseln-rechte` | `drucken`, `alles` oder `nichts` | drucken |
 | `--index` | Pfad der Index-CSV | `<out>/_index.csv` |
 | `--quiet` | kein Fortschritt auf stdout | aus |
 
@@ -215,6 +221,8 @@ python mail.py --to empfänger@example.de --count 5 --transport smtp \
 | `--config` | andere Konfigurationsdatei | `mail.env` neben dem Skript |
 | `--from` | Absenderadresse überschreiben (z. B. `noreply@…`) | Absender des Dokuments |
 | `--rate` | Mails pro Sekunde | 20 |
+| `--verschluesseln` / `-rechte` | PDF-Anhang verschlüsseln (Passwort, Rechte) | aus |
+| `--passwort-im-text` | Passwort im Mailtext nennen (Standard: nur Hinweis) | aus |
 | `--verify` | abgelegte Mails zurücklesen und prüfen | aus |
 
 **Datum:** Mails tragen immer das **aktuelle Versanddatum** im Kopf — sie sollen im Postfach oben
@@ -292,6 +300,40 @@ Transport `file` und `sink` brauchen **kein E-Mail-Konto**: Dateien bzw. `127.0.
 Ein Postfach auf einem fremden Server lässt sich ohne Zugangsdaten nicht beliefern — für echte
 Zustellung ist ein Account, ein Testdienst (MailHog/Mailtrap/Postmark) oder ein eigener Relay nötig.
 Bei `--transport smtp` wird **wirklich versendet**; das Skript gibt vorher Host, Empfänger und Anzahl aus.
+
+## Verschlüsselte PDFs
+
+**Jede Mail hat einen Anhang** — Mails ohne Beleg erzeugt dieses Werkzeug nicht mehr (früher 78 %).
+Optional ist der Anhang passwortgeschützt; der Mailtext weist darauf hin, nennt das Passwort aber nur
+mit `--passwort-im-text`.
+
+```bash
+# PDFs verschlüsseln erzeugen (Rechte: ansehen + drucken, kein Kopieren/Ändern)
+python gen.py --out D:/pdf-temp --count 100 --verschluesseln "Geheim123"
+python gen.py --out D:/pdf-temp --count 100 --verschluesseln "Geheim123" --verschluesseln-rechte nichts
+
+# verschlüsselte Anhänge versenden
+python mail.py --count 5 --verschluesseln "Geheim123" --mail-dir ./mails --verify
+
+# Bestand prüfen: verschlüsselte Dateien gelten nicht als Defekt
+python check.py D:/pdf-temp                                  # zählt sie als "verschlüsselt, nicht geprüft"
+python check.py D:/pdf-temp --passwort "Geheim123"           # entschlüsselt und prüft vollständig
+
+# lesbare Kopien für die Ansicht erzeugen (Originale bleiben unverändert)
+python unlock.py D:/pdf-temp --passwort "Geheim123"          # -> D:/pdf-temp/entsperrt/*_entsperrt.pdf
+```
+
+| | |
+|---|---|
+| Verfahren | RC4 128 Bit (wie viele Scanner- und ERP-Exporte); moderne Betrachter können eine Warnung zeigen — genau das lässt sich damit testen |
+| Benutzerpasswort | öffnet das Dokument (`--verschluesseln`) |
+| Eigentümerpasswort | nötig zum Ändern von Rechten (`--verschluesseln-owner`, Standard: Benutzerpasswort + `-owner`) |
+| Rechte | `drucken` (Standard): ansehen und drucken, kein Kopieren/Ändern · `alles` · `nichts` |
+| Index | neue Spalte `verschluesselt` (`ja`/leer). `check.py` meldet, wenn Datei und Index nicht zusammenpassen |
+| Ansehen | im Betrachter mit dem Passwort öffnen, oder `unlock.py` erzeugt Kopien ohne Schutz |
+
+`unlock.py` funktioniert auch auf einzelne Dateien: `python unlock.py rechnung.pdf --passwort "Geheim123"`.
+Ein falsches Passwort führt zu Exit-Code 1 und einer klaren Meldung.
 
 ## Verifikation
 

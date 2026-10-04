@@ -144,13 +144,25 @@ def a_dateien(p):
         index_pfad = os.path.join(index_ordner, f"lauf_{time.strftime('%Y%m%d_%H%M%S')}.csv")
     if index_pfad:
         argv += ["--index", index_pfad]
+    if flag(p.get("ver")):
+        pw = (p.get("pw") or "").strip()
+        if not pw:
+            raise ValueError("Verschlüsselung: bitte ein Passwort angeben")
+        argv += ["--verschluesseln", pw,
+                 "--verschluesseln-rechte", auswahl(p.get("rechte"), "Rechte",
+                                                    ["drucken", "alles", "nichts"], "drucken")]
     return argv, (f"{count} PDFs nach {ziel} ({layout}, {datum}"
+                  + (", verschlüsselt" if flag(p.get("ver")) else "")
                   + (", Index im Zielordner" if index_im_ziel else f", Index: {index_pfad}") + ")")
 
 
 def a_pruefen(p):
     ziel = pfad(p.get("ordner"), "Ordner", STANDARD_ZIEL, muss_existieren=True)
-    return [PY, "check.py", ziel], f"Bestand prüfen: {ziel}"
+    argv = [PY, "check.py", ziel]
+    pw = (p.get("pw") or "").strip()
+    if pw:
+        argv += ["--passwort", pw]
+    return argv, f"Bestand prüfen: {ziel}" + (" (mit Passwort für verschlüsselte PDFs)" if pw else "")
 
 
 def a_mails(p):
@@ -166,9 +178,18 @@ def a_mails(p):
         argv.append("--document-today")
     if datum == "dokument":
         argv.append("--date-from-document")
+    if flag(p.get("ver")):
+        pw = (p.get("pw") or "").strip()
+        if not pw:
+            raise ValueError("Verschlüsselung: bitte ein Passwort angeben")
+        argv += ["--verschluesseln", pw,
+                 "--verschluesseln-rechte", auswahl(p.get("rechte"), "Rechte",
+                                                    ["drucken", "alles", "nichts"], "drucken")]
     if transport == "smtp" and flag(p.get("verify_imap")):
         argv.append("--verify-imap")
-    return argv, f"{count} Mails über '{transport}' ({datum}{', Dokument heute' if flag(p.get('dokument_heute')) else ''})"
+    return argv, (f"{count} Mails über '{transport}' ({datum}"
+                  + (", Dokument heute" if flag(p.get("dokument_heute")) else "")
+                  + (", Anhang verschlüsselt" if flag(p.get("ver")) else "") + ")")
 
 
 def a_mail_check(p):
@@ -204,6 +225,18 @@ def a_testlauf(p):
     return argv, f"Kompletter Testlauf{' inkl. echter Testmail' if flag(p.get('live')) else ' ohne echten Versand'}"
 
 
+def a_entsperren(p):
+    quelle = pfad(p.get("ordner"), "Ordner", STANDARD_ZIEL, muss_existieren=True)
+    pw = (p.get("pw") or "").strip()
+    if not pw:
+        raise ValueError("Entsperren: bitte das Passwort der PDFs angeben")
+    argv = [PY, "unlock.py", quelle, "--passwort", pw]
+    ziel = (p.get("ziel") or "").strip()
+    if ziel:
+        argv += ["--ziel", pfad(ziel, "Zielordner")]
+    return argv, f"Verschlüsselte PDFs in {quelle} entsperren (Kopien ohne Passwort)"
+
+
 AKTIONEN = {
     "dateien": a_dateien,
     "pruefen": a_pruefen,
@@ -212,6 +245,7 @@ AKTIONEN = {
     "postfach": a_postfach,
     "sink": a_sink,
     "testlauf": a_testlauf,
+    "entsperren": a_entsperren,
 }
 
 

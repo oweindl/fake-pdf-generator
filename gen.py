@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import os
 import random
 import sys
@@ -16,6 +17,7 @@ from datetime import date, timedelta
 from multiprocessing import Pool
 
 from reportlab.lib import colors
+from reportlab.lib.pdfencrypt import StandardEncryption
 
 def _utf8_ausgabe():
     """Kindprozesse schreiben in eine Pipe: ohne das scheitern Umlaute und Pfeile an cp1252."""
@@ -178,6 +180,20 @@ def pos_tabelle(items, ustsatz, st=None):
 
 
 BOLD_OF = {"Helvetica": "Helvetica-Bold", "Times-Roman": "Times-Bold", "Courier": "Courier-Bold"}
+
+
+RECHTE = {
+    "drucken": dict(canPrint=1, canModify=0, canCopy=0),   # Standard: nur ansehen und drucken
+    "alles": dict(canPrint=1, canModify=1, canCopy=1),
+    "nichts": dict(canPrint=0, canModify=0, canCopy=0),
+}
+
+
+def verschluesselung(passwort, owner=None, rechte="drucken"):
+    """Baut die Angaben für die PDF-Verschlüsselung (None = nicht verschlüsseln)."""
+    if not passwort:
+        return None
+    return {"pw": passwort, "owner": owner or (passwort + "-owner"), "rechte": RECHTE[rechte]}
 
 
 def basis_styles(font="Helvetica"):
@@ -758,12 +774,17 @@ def make_name(rng, typ, ctx, counter):
 
 
 # ---------------------------------------------------------------------- Bauen
-def write_pdf(path, story, ctx, typ, st, titel):
-    doc = SimpleDocTemplate(path, pagesize=A5 if typ == "quittung" else A4,
+def write_pdf(path, story, ctx, typ, st, titel, versch=None):
+    """Baut das PDF; mit versch (siehe verschluesselung()) wird es passwortgeschützt geschrieben."""
+    puffer = io.BytesIO()
+    doc = SimpleDocTemplate(puffer, pagesize=A5 if typ == "quittung" else A4,
                             leftMargin=22 * mm, rightMargin=18 * mm, topMargin=18 * mm, bottomMargin=20 * mm,
                             title=f"{titel} \u2013 {ctx['absender'][0]}", author=ctx["absender"][0],
                             subject=titel, creator=f"{ctx['absender'][0]} Warenwirtschaft",
                             keywords=f"{typ}, {ctx['absender'][0]}, {ctx['firma'][0]}, {ctx['datum'].year}")
+    if versch:
+        # Verschlüsselung am Template setzen — es reicht sie beim Bauen an den Canvas weiter
+        doc.encrypt = StandardEncryption(versch["pw"], versch["owner"], strength=128, **versch["rechte"])
 
     def fusszeile(canv, d):
         canv.saveState()
@@ -775,6 +796,12 @@ def write_pdf(path, story, ctx, typ, st, titel):
         canv.restoreState()
 
     doc.build(story, onFirstPage=fusszeile, onLaterPages=fusszeile)
+    daten = puffer.getvalue()
+    if hasattr(path, "write"):
+        path.write(daten)
+    else:
+        with open(path, "wb") as fh:
+            fh.write(daten)
     return doc.page
 
 
@@ -800,7 +827,7 @@ def derive(seed, heute=False):
     return rng, typ, today, ctx, font
 
 
-def build_one(spec, flat=False, heute=False):
+def build_one(spec, flat=False, heute=False, versch=None):
     idx, seed, outdir, name = spec
     rng, typ, today, ctx, font = derive(seed, heute)
     st = basis_styles(font)
@@ -813,21 +840,22 @@ def build_one(spec, flat=False, heute=False):
         os.makedirs(ordner, exist_ok=True)
     path = os.path.join(ordner, name)
     try:
-        pages = write_pdf(path, story, ctx, typ, st, meta["titel"])
+        pages = write_pdf(path, story, ctx, typ, st, meta["titel"], versch)
     except Exception as exc:  # noqa: BLE001
         return {"error": f"{name}: {type(exc).__name__}: {exc}", "index": idx}
     size = os.path.getsize(path)
     return {"error": None, "index": idx, "datei": name, "typ": typ, "titel": meta["titel"],
             "datum": dt(today), "ordner": f"{today.year:04d}/{today.month:02d}",
             "absender": ctx["absender"][0], "empfaenger": ctx["firma"][0],
-            "nummer": meta["nummer"], "betrag": meta["betrag"], "seiten": pages, "bytes": size}
+            "nummer": meta["nummer"], "betrag": meta["betrag"], "seiten": pages, "bytes": size,
+            "verschluesselt": "ja" if versch else ""}
 
 
 def build_chunk(job):
-    chunk_id, specs, outdir, flat, heute = job
+    chunk_id, specs, outdir, flat, heute, versch = job
     res = []
     for spec in specs:
-        res.append(build_one((spec[0], spec[1], outdir, spec[2]), flat, heute))
+        res.append(build_one((spec[0], spec[1], outdir, spec[2]), flat, heute, versch))
     return chunk_id, res
 
 
@@ -842,8 +870,16 @@ def main():
     ap.add_argument("--flat", action="store_true", help="ohne Jahr/Monat-Unterordner ablegen")
     ap.add_argument("--document-today", action="store_true",
                     help="Dokumente auf heute datieren statt auf den Zeitraum 2023-2026")
+    ap.add_argument("--verschluesseln", "--encrypt", dest="verschluesseln", default=None,
+                    metavar="PASSWORT", help="PDFs mit diesem Benutzerpasswort verschlüsseln")
+    ap.add_argument("--verschluesseln-owner", dest="verschluesseln_owner", default=None,
+                    metavar="PASSWORT", help="Eigentümerpasswort (Standard: Benutzerpasswort + '-owner')")
+    ap.add_argument("--verschluesseln-rechte", dest="verschluesseln_rechte", default="drucken",
+                    choices=["drucken", "alles", "nichts"],
+                    help="Rechte für verschlüsselte PDFs (Standard: nur ansehen und drucken)")
     a = ap.parse_args()
 
+    versch = verschluesselung(a.verschluesseln, a.verschluesseln_owner, a.verschluesseln_rechte)
     os.makedirs(a.out, exist_ok=True)
     rng = random.Random(a.seed)
     used = set()
@@ -866,7 +902,7 @@ def main():
     jobs = []
     per = max(1, len(specs) // a.jobs)
     for c in range(0, len(specs), per):
-        jobs.append((len(jobs), specs[c:c + per], a.out, a.flat, a.document_today))
+        jobs.append((len(jobs), specs[c:c + per], a.out, a.flat, a.document_today, versch))
 
     t0 = time.time()
     rows, errors = [], []
@@ -894,6 +930,8 @@ def main():
     print(f"Index: {idx_path}")
     for e in errors[:20]:
         print("  FEHLER:", e)
+    if versch:
+        print(f"Verschlüsselung: Benutzerpasswort gesetzt, Rechte {a.verschluesseln_rechte}")
     typcount = {}
     for r in rows:
         typcount[r["typ"]] = typcount.get(r["typ"], 0) + 1

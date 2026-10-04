@@ -83,13 +83,14 @@ const pruefe = (name, ok, detail = '') => tests.push({ name, ok: !!ok, detail })
 const testJs = `
 return (async () => {
   const erwartet = {
-    dateien: ['ordner', 'count', 'seed', 'jobs', 'layout', 'datum', 'index'],
-    pruefen: ['ordner'],
-    mails: ['count', 'seed', 'transport', 'datum', 'mailordner', 'dokument_heute'],
+    dateien: ['ordner', 'count', 'seed', 'jobs', 'layout', 'datum', 'index', 'ver', 'pw', 'rechte'],
+    pruefen: ['ordner', 'pw'],
+    mails: ['count', 'seed', 'transport', 'datum', 'mailordner', 'dokument_heute', 'ver', 'pw', 'rechte'],
     mail_check: ['was'],
     postfach: ['anzahl'],
     sink: ['sekunden', 'mailordner'],
     testlauf: ['ordner', 'live', 'keep'],
+    entsperren: ['ordner', 'pw', 'ziel'],
   };
   const ziel = ${JSON.stringify(ZIEL)};
   await umgebung();

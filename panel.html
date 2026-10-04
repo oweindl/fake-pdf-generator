@@ -89,10 +89,18 @@
       <div><label>&nbsp;</label>
         <div class="schalter"><input type="checkbox" id="d-index"><label for="d-index" style="margin:0">_index.csv
           im Zielordner ablegen</label></div></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="d-ver"><label for="d-ver" style="margin:0">PDFs
+          verschlüsseln</label></div></div>
+      <div><label for="d-pw">Passwort für PDFs</label><input id="d-pw" type="password" placeholder="nur bei Verschlüsselung"></div>
+      <div><label for="d-rechte">Rechte in verschlüsselten PDFs</label>
+        <select id="d-rechte"><option value="drucken">ansehen und drucken</option>
+          <option value="alles">alles erlaubt</option><option value="nichts">nichts erlaubt</option></select></div>
     </div>
     <div class="knopfreihe">
       <button class="haupt" data-aktion="dateien" data-form="d-">Erzeugen</button>
       <button data-aktion="pruefen" data-form="d-" data-nur="ordner">Bestand prüfen</button>
+      <span class="hinweis">Passwort oben gilt auch für die Prüfung</span>
       <span class="hinweis" id="d-ziel"></span>
     </div>
     <div class="hinweis" id="d-fehler"></div>
@@ -115,6 +123,13 @@
       <div><label>&nbsp;</label>
         <div class="schalter"><input type="checkbox" id="m-dokument-heute"><label for="m-dokument-heute"
           style="margin:0">Dokument im Anhang auf heute</label></div></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="m-ver"><label for="m-ver" style="margin:0">Anhang
+          verschlüsseln</label></div></div>
+      <div><label for="m-pw">Passwort für den Anhang</label><input id="m-pw" type="password"></div>
+      <div><label for="m-rechte">Rechte im Anhang</label>
+        <select id="m-rechte"><option value="drucken">ansehen und drucken</option>
+          <option value="alles">alles erlaubt</option><option value="nichts">nichts erlaubt</option></select></div>
     </div>
     <div class="knopfreihe">
       <button class="haupt" data-aktion="mails" data-form="m-">Senden</button>
@@ -157,6 +172,20 @@
     <div class="hinweis" id="t-fehler"></div>
   </section>
 
+  <section>
+    <h2>Verschlüsselte PDFs entsperren</h2>
+    <div class="felder">
+      <div><label for="u-ordner">Ordner mit den PDFs</label><input id="u-ordner" placeholder="Ordner aus panel.py"></div>
+      <div><label for="u-pw">Passwort der PDFs</label><input id="u-pw" type="password"></div>
+      <div><label for="u-ziel">Zielordner (leer = &lt;Ordner&gt;/entsperrt)</label><input id="u-ziel"></div>
+    </div>
+    <div class="knopfreihe">
+      <button data-aktion="entsperren" data-form="u-">Kopien ohne Passwort erzeugen</button>
+      <span class="hinweis">Die Originale bleiben unverändert.</span>
+    </div>
+    <div class="hinweis" id="u-fehler"></div>
+  </section>
+
   <section class="wide">
     <h2>Ausgabe</h2>
     <pre class="konsole" id="konsole">Bereit. Aktion wählen — der Verlauf erscheint hier.</pre>
@@ -171,9 +200,10 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum","d-index",
+const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum","d-index","d-ver","d-pw","d-rechte",
                 "m-count","m-seed","m-transport","m-datum","m-mailordner","m-dokument-heute",
-                "p-was","p-anzahl","t-ordner","t-sink","t-live","t-keep"];
+                "m-ver","m-pw","m-rechte","p-was","p-anzahl","t-ordner","t-sink","t-live","t-keep",
+                "u-ordner","u-pw","u-ziel"];
 let laeuft = false;
 
 FELDER.forEach((id) => {
@@ -192,16 +222,20 @@ function zeige(id, text, klasse) {
 
 function parameter(aktion, formPraefix, nur) {
   const nimm = (kurz, ziel) => $(formPraefix + kurz).value.trim();
-  if (nur === "ordner") return { ordner: nimm("ordner") };
+  if (nur === "ordner") return { ordner: nimm("ordner"), pw: nimm("pw") };
   if (aktion === "dateien") return {
     ordner: nimm("ordner"), count: nimm("count"), seed: nimm("seed"), jobs: nimm("jobs"),
     layout: nimm("layout"), datum: nimm("datum"),
-    index: $(formPraefix + "index").checked };
+    index: $(formPraefix + "index").checked,
+    ver: $(formPraefix + "ver").checked, pw: nimm("pw"), rechte: nimm("rechte") };
   if (aktion === "mails") return {
     count: nimm("count"), seed: nimm("seed"), transport: nimm("transport"), datum: nimm("datum"),
-    mailordner: nimm("mailordner"), dokument_heute: $(formPraefix + "dokument-heute").checked };
+    mailordner: nimm("mailordner"), dokument_heute: $(formPraefix + "dokument-heute").checked,
+    ver: $(formPraefix + "ver").checked, pw: nimm("pw"), rechte: nimm("rechte") };
   if (aktion === "mail_check") return { was: nimm("was") };
   if (aktion === "postfach") return { anzahl: nimm("anzahl") };
+  if (aktion === "entsperren") return { ordner: ($("u-ordner").value.trim() || $("d-ordner").value.trim()),
+                                        pw: $("u-pw").value.trim(), ziel: $("u-ziel").value.trim() };
   if (aktion === "sink") return { sekunden: $("t-sink").value.trim(),
                                   mailordner: $("m-mailordner").value.trim() || "mails" };
   if (aktion === "testlauf") return { ordner: nimm("ordner"), live: $(formPraefix + "live").checked,
