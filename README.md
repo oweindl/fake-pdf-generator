@@ -111,17 +111,23 @@ Kleine lokale Oberfläche mit Formularen, Live-Ausgabe, Stop-Knopf und Liste der
 ### Starten und beenden (auch außerhalb einer Sitzung)
 
 Der Ordner ist selbsttragend: auf die Zielmaschine kopieren, beim ersten Start richten die Wrapper
-`.venv` und die Abhängigkeiten selbst ein.
+`.venv` und die Abhängigkeiten selbst ein. Der Zielordner ist mit `\\hellfire\PDF-TEst\test\TestEingang`
+vorbelegt (änderbar über `STANDARD_ZIEL` in `panel.py` oder beim Start mit
+`python panel.py --ziel D:/eigener/ordner`).
 
 | Wie | Start | Beenden |
 |---|---|---|
-Der Zielordner ist mit `\\hellfire\PDF-TEst\test\TestEingang` vorbelegt (änderbar in `panel.py`
-über `STANDARD_ZIEL` oder beim Start mit `python panel.py --ziel D:/eigener/ordner`).
-
 | Explorer (Windows) | `leitstand.cmd` doppelklicken — Fenster bleibt offen, Browser öffnet sich | Knopf **Beenden**, Strg-C oder Fenster schließen |
-| Terminal | `.venv\Scripts\python panel.py --port 8765` | Strg-C |
-| ohne Fenster (läuft weiter, wenn das Terminal schließt) | `start "" ".venv\Scripts\pythonw.exe" panel.py --no-browser` | Knopf **Beenden** oder `leitstand-stop.cmd` |
+| Terminal | `.venv\Scripts\python panel.py --port 8765` | Strg-C oder `.venv\Scripts\python panel.py --stop` |
+| ohne Fenster (läuft weiter, wenn das Terminal schließt) | `start "" ".venv\Scripts\pythonw.exe" panel.py --no-browser` | Knopf **Beenden**, `panel.py --stop` oder `leitstand-stop.cmd` |
 | Linux/macOS | `./leitstand.sh` | Strg-C oder `./leitstand-stop.sh` |
+
+Der Knopf **Beenden** in der Kopfzeile beendet nicht nur die Seite, sondern den ganzen Prozess: er
+stoppt ein laufendes Kommando, schließt den HTTP-Server und beendet die Python-Instanz hart. Grund
+für die Härte: auf Windows erlaubt `SO_REUSEADDR` sonst, dass zwei Prozesse denselben Port bedienen —
+dann beendet der Knopf nur einen davon und der andere läuft weiter. Der Leitstand bindet den Port
+deshalb exklusiv; ein zweiter Start bricht mit `FEHLER: Port … ist belegt` und Hinweis auf
+`leitstand-stop.cmd` ab.
 
 `leitstand-stop.cmd [Port]` findet den Prozess, der auf dem Port lauscht, und beendet ihn — auch bei
 einem Start ohne Fenster (Standardport 8765). Notnagel von Hand:

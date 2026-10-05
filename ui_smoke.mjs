@@ -151,6 +151,15 @@ return (async () => {
   await knoepfe[0].click();
   pruefe('ungültige Anzahl abgewiesen', /erlaubt sind|Zahl/.test(document.getElementById('d-fehler').textContent),
     document.getElementById('d-fehler').textContent);
+
+  // 4) Beenden-Knopf muss den Serverprozess wirklich abschalten (muss der letzte Test sein)
+  const quitAntwort = await document.getElementById('btn-quit').click();
+  await new Promise((r) => setTimeout(r, 2500));
+  let nochDa = true;
+  try { await fetch('/api/status'); } catch (e) { nochDa = false; }
+  pruefe('Beenden-Knopf stoppt den Serverprozess', !nochDa,
+    nochDa ? 'Server antwortet weiterhin' : 'Server nicht mehr erreichbar');
+
 })().catch((e) => pruefe('Testablauf', false, 'Ausnahme: ' + e.message));
 `;
 
@@ -167,8 +176,8 @@ try {
     knoepfe.map((k) => k.dataset.aktion).join(','));
 
   const lauf = new Function('document', 'localStorage', 'setInterval', 'fetch', 'Event', 'pruefe',
-    'abrufe', 'knoepfe', appJs + '\n' + testJs);
-  await lauf(document, localStorage, () => 0, fetchEcht, Event, pruefe, abrufe, knoepfe);
+    'abrufe', 'knoepfe', 'confirm', appJs + '\n' + testJs);
+  await lauf(document, localStorage, () => 0, fetchEcht, Event, pruefe, abrufe, knoepfe, () => true);
 } finally {
   server.kill();
 }

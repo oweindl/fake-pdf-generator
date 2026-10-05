@@ -324,6 +324,29 @@ def starte(aktion, parameter):
     return beschreibung
 
 
+def beende_prozess(server=None):
+    """Beendet laufende Kommandos und den Leitstand-Prozess zuverlässig.
+
+    server.shutdown() allein genügt nicht: laufen noch Threads (Lesethread, HTTP-Threads)
+    oder wurde das Skript über einen Launcher gestartet, bleibt der Python-Prozess stehen.
+    Deshalb danach hart os._exit().
+    """
+    stoppe()
+    if server is not None:
+        try:
+            server.shutdown()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            server.server_close()
+        except Exception:  # noqa: BLE001
+            pass
+    time.sleep(0.4)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
+
+
 def stoppe():
     with sperre:
         p = zustand["prozess"]
@@ -358,6 +381,19 @@ def status():
 
 
 # ------------------------------------------------------------------------- HTTP
+class Server(ThreadingHTTPServer):
+    """HTTP-Server mit eindeutiger Portbindung.
+
+    Windows erlaubt mit SO_REUSEADDR, dass ein zweiter Prozess denselben Port bindet — dann
+    bedienen zwei Instanzen abwechselnd dieselben Anfragen und ein Beenden trifft nur eine davon.
+    Deshalb auf Windows ohne Adresswiederverwendung starten; der zweite Start bricht dann mit
+    klarer Meldung ab.
+    """
+
+    allow_reuse_address = os.name != "nt"
+    daemon_threads = True
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "Leitstand/1.0"
 
@@ -423,9 +459,9 @@ class Handler(BaseHTTPRequestHandler):
                     subprocess.Popen(["xdg-open", ziel])
                 self._json(200, {"ok": True, "ordner": ziel})
             elif pfad_url.path == "/api/quit":
-                # Beenden aus der Oberfläche heraus: shutdown() muss aus einem anderen Thread kommen
+                # Beenden aus der Oberfläche: erst antworten, dann Kommando stoppen und Prozess beenden
                 self._json(200, {"ok": True, "hinweis": "Leitstand wird beendet"})
-                threading.Thread(target=self.server.shutdown, daemon=True).start()
+                threading.Thread(target=beende_prozess, args=(self.server,), daemon=True).start()
             elif pfad_url.path == "/api/selftest":
                 self._json(200, selftest())
             else:
@@ -476,12 +512,40 @@ def selftest():
     return {"ok": ok, "ergebnisse": ergebnisse, "historie": list(zustand["historie"])[:3]}
 
 
+def stoppe_ueber_api(host, port):
+    """Beendet einen laufenden Leitstand über dessen API."""
+    import json as _json
+    import urllib.error
+    import urllib.request
+    adresse = f"http://{host}:{port}/api/quit"
+    try:
+        anfrage = urllib.request.Request(adresse, data=b"{}", method="POST",
+                                         headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(anfrage, timeout=5) as antwort:
+            _json.loads(antwort.read() or b"{}")
+    except urllib.error.URLError as exc:
+        print(f"Kein Leitstand auf {host}:{port} erreichbar ({exc.reason}).")
+        return 0
+    for _ in range(20):
+        time.sleep(0.3)
+        try:
+            urllib.request.urlopen(f"http://{host}:{port}/api/status", timeout=2)
+        except Exception:  # noqa: BLE001
+            print(f"Leitstand auf {host}:{port} beendet.")
+            return 0
+    print(f"Leitstand auf {host}:{port} antwortet noch — bitte leitstand-stop.cmd {port} nutzen.",
+          file=sys.stderr)
+    return 1
+
+
 def main():
     ap = argparse.ArgumentParser(description="Leitstand für den Fake-PDF-Generator")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--selftest", action="store_true", help="Smoke-Test ohne Server/Browser")
+    ap.add_argument("--stop", action="store_true",
+                    help="laufenden Leitstand über /api/quit beenden (auch aus einem Skript)")
     ap.add_argument("--ziel", default=None, help="Zielordner, der in der Oberfläche vorbelegt wird")
     a = ap.parse_args()
     global STANDARD_ZIEL
@@ -493,7 +557,16 @@ def main():
         print(json.dumps(ergebnis, ensure_ascii=False, indent=2))
         return 0 if ergebnis["ok"] else 1
 
-    server = ThreadingHTTPServer((a.host, a.port), Handler)
+    if a.stop:
+        return stoppe_ueber_api(a.host, a.port)
+
+    try:
+        server = Server((a.host, a.port), Handler)
+    except OSError as exc:
+        print(f"FEHLER: Port {a.port} ist belegt ({exc}).", file=sys.stderr)
+        print(f"Läuft schon ein Leitstand? Beenden mit: leitstand-stop.cmd {a.port} "
+              f"oder python panel.py --stop --port {a.port}", file=sys.stderr)
+        return 2
     url = f"http://{a.host}:{a.port}/"
     print(f"Leitstand läuft: {url}\nArbeitsordner des Generators: {HIER}\nBeenden mit Strg-C")
     print(f"Aktionen: {', '.join(AKTIONEN)}")
