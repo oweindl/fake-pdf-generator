@@ -596,7 +596,7 @@ def name_fuer(prj, typ, datum, schema=None, nummer=1, gesamt=1):
 
 def baue_projekt(job):
     """Erzeugt ein Projekt mit allen Dokumenten."""
-    idx, seed, outdir, anzahl, schema, versch, flat = job
+    idx, seed, outdir, anzahl, schema, versch, flat, mit_projekt_index = job
     rng = random.Random(seed)
     jahr = 2026
     prj = projekt(rng, jahr, rng.randint(1, 9999))
@@ -649,14 +649,16 @@ def baue_projekt(job):
                        "verfasser": ctx["bearbeiter"], "betrag": meta["betrag"], "seiten": seiten,
                        "bytes": os.path.getsize(pfad),
                        "verschluesselt": "ja" if versch else ""})
-    if zeilen:
+    if zeilen and mit_projekt_index:
+        # nur auf Wunsch: eine Index-CSV im Projektordner mit ablegen
         with open(os.path.join(ordner, "_index.csv"), "w", newline="", encoding="utf-8-sig") as fh:
             w = csv.DictWriter(fh, fieldnames=list(zeilen[0].keys()))
             w.writeheader()
             w.writerows(zeilen)
     return {"projekt": prj["nummer"], "objekt": prj["objekt"], "bauherr": prj["bauherr"][0],
             "art": prj["art"], "ordner": ordner, "dokumente": len(zeilen),
-            "summe": prj["summe"], "bytes": sum(z["bytes"] for z in zeilen), "fehler": fehler}
+            "summe": prj["summe"], "bytes": sum(z["bytes"] for z in zeilen), "fehler": fehler,
+            "zeilen": zeilen}
 
 
 def main():
@@ -673,14 +675,25 @@ def main():
     ap.add_argument("--verschluesseln-owner", dest="verschluesseln_owner", default=None)
     ap.add_argument("--verschluesseln-rechte", dest="verschluesseln_rechte", default="drucken",
                     choices=["drucken", "alles", "nichts"])
+    ap.add_argument("--index", default=None, metavar="DATEI",
+                    help="eine Sammel-CSV außerhalb der Projektordner schreiben (statt _index.csv je Projekt)")
+    ap.add_argument("--kein-index", dest="kein_index", action="store_true",
+                    help="gar keine Index-CSV schreiben")
+    ap.add_argument("--mit-projekt-index", dest="mit_projekt_index", action="store_true",
+                    help="zusätzlich _index.csv in jedem Projektordner ablegen")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
 
     versch = G.verschluesselung(a.verschluesseln, a.verschluesseln_owner, a.verschluesseln_rechte)
     os.makedirs(a.out, exist_ok=True)
     rng = random.Random(a.seed)
-    jobs = [(i, rng.randint(1, 2 ** 31 - 1), a.out, a.dokumente, a.namensschema, versch, a.flat)
-            for i in range(a.projekte)]
+    # Index: standardmäßig eine CSV je Projektordner, mit --index eine Sammel-CSV außerhalb,
+    # mit --kein-index gar keine.
+    mit_projekt_index = not a.kein_index and not a.index
+    if a.mit_projekt_index:
+        mit_projekt_index = True
+    jobs = [(i, rng.randint(1, 2 ** 31 - 1), a.out, a.dokumente, a.namensschema, versch, a.flat,
+             mit_projekt_index) for i in range(a.projekte)]
 
     t0 = time.time()
     ergebnisse = []
@@ -698,6 +711,17 @@ def main():
                       flush=True)
 
     ergebnisse.sort(key=lambda e: e["projekt"])
+    if a.index:
+        felder = ["projekt"] + (list(ergebnisse[0]["zeilen"][0].keys()) if ergebnisse else [])
+        with open(a.index, "w", newline="", encoding="utf-8-sig") as fh:
+            w = csv.DictWriter(fh, fieldnames=felder, extrasaction="ignore")
+            w.writeheader()
+            for e in ergebnisse:
+                for z in e["zeilen"]:
+                    w.writerow({**z, "projekt": e["projekt"]})
+        print(f"Sammelindex: {a.index} ({sum(e['dokumente'] for e in ergebnisse)} Zeilen)")
+    elif a.kein_index:
+        print("Kein Index geschrieben (--kein-index)")
     gesamt = sum(e["dokumente"] for e in ergebnisse)
     fehler = [f for e in ergebnisse for f in e["fehler"]]
     print(f"\n{len(ergebnisse)} Projekt(e) mit {gesamt} Dokumenten in {a.out} "

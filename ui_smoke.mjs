@@ -91,7 +91,7 @@ return (async () => {
     sink: ['sekunden', 'mailordner'],
     testlauf: ['ordner', 'live', 'keep'],
     entsperren: ['ordner', 'pw', 'ziel'],
-    projekt: ['ordner', 'projekte', 'dokumente', 'seed', 'jobs', 'flat', 'ver', 'pw', 'rechte', 'schema'],
+    projekt: ['ordner', 'projekte', 'dokumente', 'seed', 'jobs', 'flat', 'ver', 'pw', 'rechte', 'schema', 'index'],
   };
   const ziel = ${JSON.stringify(ZIEL)};
   await umgebung();

@@ -188,6 +188,9 @@
           verschlüsseln</label></div></div>
       <div><label for="j-pw">Passwort für PDFs</label><input id="j-pw" type="password"></div>
       <div><label for="j-schema">Dateinamenschema</label><input id="j-schema" placeholder="{projekt}_{typ}_{datum}.pdf"></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="j-index"><label for="j-index" style="margin:0">_index.csv
+          in den Projektordnern ablegen (sonst außerhalb)</label></div></div>
     </div>
     <div class="knopfreihe">
       <button class="haupt" data-aktion="projekt" data-form="j-">Projekt erzeugen</button>
@@ -229,7 +232,7 @@ const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum","d-i
                 "m-count","m-seed","m-transport","m-datum","m-mailordner","m-dokument-heute",
                 "m-ver","m-pw","m-rechte","p-was","p-anzahl","t-ordner","t-sink","t-live","t-keep",
                 "u-ordner","u-pw","u-ziel",
-                "j-ordner","j-projekte","j-dokumente","j-seed","j-flat","j-ver","j-pw","j-schema"];
+                "j-ordner","j-projekte","j-dokumente","j-seed","j-flat","j-ver","j-pw","j-schema","j-index"];
 let laeuft = false;
 
 FELDER.forEach((id) => {
@@ -265,7 +268,8 @@ function parameter(aktion, formPraefix, nur) {
                                      dokumente: nimm("dokumente"), seed: nimm("seed"),
                                      jobs: "4", flat: $(formPraefix + "flat").checked,
                                      ver: $(formPraefix + "ver").checked, pw: nimm("pw"),
-                                     rechte: "drucken", schema: nimm("schema") };
+                                     rechte: "drucken", schema: nimm("schema"),
+                                     index: $(formPraefix + "index").checked };
   if (aktion === "entsperren") return { ordner: ($("u-ordner").value.trim() || $("d-ordner").value.trim()),
                                         pw: $("u-pw").value.trim(), ziel: $("u-ziel").value.trim() };
   if (aktion === "sink") return { sekunden: $("t-sink").value.trim(),

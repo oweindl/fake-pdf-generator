@@ -243,6 +243,13 @@ def a_projekt(p):
     schema = (p.get("schema") or "").strip()
     if schema:
         argv += ["--namensschema", schema]
+    if flag(p.get("index")):
+        argv.append("--mit-projekt-index")
+    else:
+        # Index außerhalb der Projektordner halten, damit Testordner sauber bleiben
+        index_ordner = os.path.join(HIER, "index")
+        os.makedirs(index_ordner, exist_ok=True)
+        argv += ["--index", os.path.join(index_ordner, f"projekte_{time.strftime('%Y%m%d_%H%M%S')}.csv")]
     if flag(p.get("ver")):
         pw = (p.get("pw") or "").strip()
         if not pw:

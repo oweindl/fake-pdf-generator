@@ -208,8 +208,9 @@ def s_namensschema(ordner, seed):
 def s_projekte(ordner, seed):
     """Projektdokumentationen: je Projekt ein Ordner, alle Dokumente mit Projektnummer."""
     ziel = os.path.join(ordner, "projekte")
+    sammel = os.path.join(ordner, "projekte_index.csv")
     code, aus = lauf("projekt.py", "--out", ziel, "--projekte", "2", "--dokumente", "12",
-                     "--seed", str(seed), "--quiet")
+                     "--seed", str(seed), "--index", sammel, "--quiet")
     if code != 0:
         return False, f"projekt.py Exit {code}: {aus.strip()[:120]}"
     from pypdf import PdfReader
@@ -224,11 +225,15 @@ def s_projekte(ordner, seed):
                                     PdfReader(os.path.join(pfad, f)).pages).split())
             if p_ordner not in text:
                 ohne_nummer.append(f)
+        if os.path.exists(os.path.join(pfad, "_index.csv")):
+            ohne_nummer.append("_index.csv trotz --index im Projektordner")
         if lauf("check.py", pfad)[0] == 0:
             geprueft += 1
-    return (len(ordner_liste) == 2 and dateien == 24 and not ohne_nummer and geprueft == 2), \
+    sammel_da = os.path.exists(sammel) and sum(1 for _ in open(sammel, encoding="utf-8-sig")) == 25
+    return (len(ordner_liste) == 2 and dateien == 24 and not ohne_nummer and geprueft == 2
+            and sammel_da), \
         (f"{len(ordner_liste)} Projekte, {dateien} Dokumente, check.py fehlerfrei in {geprueft} Ordnern, "
-         f"ohne Projektnummer: {len(ohne_nummer)}")
+         f"Sammelindex mit 24 Zeilen: {sammel_da}, Auffälligkeiten: {len(ohne_nummer)}")
 
 
 def s_dateien_verschluesselt(ordner, seed):

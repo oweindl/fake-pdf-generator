@@ -892,6 +892,8 @@ def main():
     ap.add_argument("--seed", type=int, default=20260927)
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 4) - 2))
     ap.add_argument("--index", default=None)
+    ap.add_argument("--kein-index", dest="kein_index", action="store_true",
+                    help="keine Index-CSV schreiben (Zielordner bleibt unberührt)")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--flat", action="store_true", help="ohne Jahr/Monat-Unterordner ablegen")
     ap.add_argument("--document-today", action="store_true",
@@ -947,8 +949,8 @@ def main():
             if not a.quiet:
                 print(f"  {done}/{len(specs)} Dateien  ({time.time()-t0:.0f}s)", flush=True)
     rows.sort(key=lambda r: r["index"])
-    idx_path = a.index or os.path.join(a.out, "_index.csv")
-    if rows:
+    idx_path = None if a.kein_index else (a.index or os.path.join(a.out, "_index.csv"))
+    if rows and idx_path:
         with open(idx_path, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
             w.writeheader()
@@ -956,7 +958,10 @@ def main():
     total = sum(r["bytes"] for r in rows)
     print(f"\nFertig: {len(rows)} PDFs in {a.out}")
     print(f"Gesamtgr\u00f6\u00dfe: {total/1024/1024:.1f} MB \u00b7 Dauer {time.time()-t0:.1f}s \u00b7 Fehler {len(errors)}")
-    print(f"Index: {idx_path}")
+    if idx_path:
+        print(f"Index: {idx_path}")
+    else:
+        print("Kein Index geschrieben (--kein-index)")
     for e in errors[:20]:
         print("  FEHLER:", e)
     if versch:

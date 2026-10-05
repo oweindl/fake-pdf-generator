@@ -171,6 +171,7 @@ python gen.py --out ./out --count 500 --index ./index.csv
 | `--verschluesseln-owner` | Eigentümerpasswort | `<Passwort>-owner` |
 | `--verschluesseln-rechte` | `drucken`, `alles` oder `nichts` | drucken |
 | `--index` | Pfad der Index-CSV | `<out>/_index.csv` |
+| `--kein-index` | keine Index-CSV schreiben (Zielordner bleibt unberührt) | aus |
 | `--quiet` | kein Fortschritt auf stdout | aus |
 
 ## Beispieldateien
@@ -352,9 +353,22 @@ python projekt.py --out D:/projekte --projekte 2 --namensschema "{projekt}_{typ}
 | Inhalt | Bauherr, Bauvorhaben, Gewerk, Bauleiter, Team, Auftragssumme, Zahlungsplan, Zufahrtsregeln — dieselben Angaben ziehen sich durch alle Dokumente |
 | Ablage | `<out>/<Projektnummer>/` mit `_index.csv` je Projekt (Dokument, Typ, Titel, Datum, Verfasser, Betrag, Seiten) |
 | Optionen | `--projekte`, `--dokumente`, `--seed`, `--jobs`, `--flat`, `--namensschema` (mit `{projekt}`), `--verschluesseln …` |
+| Index | standardmäßig `_index.csv` je Projektordner · mit `--index DATEI` eine Sammel-CSV außerhalb (dann **keine** CSV in den Projektordnern) · `--kein-index` schreibt gar keine |
 
 Beispielhafte Akte: `P-2026-5217-Pflegeheim_Sonnenhof/` mit 14 Dokumenten — von der Projektübersicht
 über vier Bautagebücher und zwei Besprechungsnotizen bis zu Abnahme und Abschlussbericht.
+
+## Wo landet die Index-CSV?
+
+| Werkzeug | Standard | Sauber halten |
+|---|---|---|
+| `gen.py` | `_index.csv` im Zielordner | `--index woanders.csv` oder `--kein-index` |
+| `projekt.py` | `_index.csv` in **jedem** Projektordner | `--index sammel.csv` (eine CSV außerhalb, keine in den Projektordnern) oder `--kein-index` |
+| Leitstand | schreibt Indizes nach `<repo>/index/` — Zielordner bleiben unberührt | Projektformular: Häkchen „_index.csv in den Projektordnern ablegen“, wenn du sie dort haben willst |
+
+Der Index ist eine reine Arbeitsliste (Datei, Typ, Titel, Datum, Absender, Betrag, Seiten, Bytes) und
+wird von den Dokumenten selbst nicht gebraucht. Für überwachte Eingangsordner ist `--kein-index`
+oder ein Pfad außerhalb die richtige Wahl.
 
 ## Verschlüsselte PDFs
 
