@@ -53,6 +53,9 @@ python mail.py --verify-imap --count 1                                   # Zuste
 python mail.py --imap-list 10                                            # Postfach ansehen
 python mail.py --serve --serve-seconds 120                               # nur Sink betreiben (Testserver)
 
+# --- Projektdokumentation --------------------------------------------------
+python projekt.py --out D:/projekte --projekte 3 --dokumente 15 --seed 2026
+
 # --- alles auf einmal ------------------------------------------------------
 python testrun.py            # 8 Kombinationen durchprüfen (Dateien, Mails, Datumsarten, SMTP-Pfad)
 python testrun.py --live     # zusätzlich echte Anmeldung und eine Testmail
@@ -328,6 +331,30 @@ python gen.py --out D:/pdf-temp --count 20  --namensschema "scan-{jahr}-{monat}-
 Ohne `.pdf` im Muster wird die Endung ergänzt; unzulässige Zeichen werden ersetzt. `mail.py`
 versteht dasselbe Muster für den Anhangsnamen (`--namensschema`), der Leitstand hat ein Feld
 „Dateinamenschema“.
+
+## Projektdokumentationen
+
+`projekt.py` erzeugt **zusammenhängende Projektakten** statt einzelner Dokumente. Jedes Projekt
+bekommt eine Nummer `P-<Jahr>-<Zahl>-<Kurzbezeichnung>` und einen eigenen Ordner; darin liegen alle
+Papiere, die im Projektverlauf anfallen — alle mit derselben Projektnummer und chronologisch über
+die Laufzeit verteilt.
+
+```bash
+python projekt.py --out D:/projekte --projekte 3 --dokumente 15 --seed 2026
+python projekt.py --out D:/projekte --projekte 1 --dokumente 30 --flat
+python projekt.py --out D:/projekte --projekte 2 --namensschema "{projekt}_{typ}_{datum}.pdf"
+```
+
+| | |
+|---|---|
+| Rahmen | Projektübersicht (Steckbrief, Meilensteine, Beteiligte), Projektskizze, Terminplan — am Anfang; Abnahmeprotokoll und Projektabschlussbericht am Ende |
+| Alltag | Bautagebuch (Wetter, Personal, Stunden, Arbeiten, Behinderungen), Besprechungsnotizen mit TOPs und Aufgaben, Lieferscheine, Aufmaßprotokoll, Mängelliste, Behinderungsanzeige/Nachtrag, Stundenaufstellung mit Soll/Ist, Abschlagsrechnungen, Fotodokumentation, Gefährdungsbeurteilung |
+| Inhalt | Bauherr, Bauvorhaben, Gewerk, Bauleiter, Team, Auftragssumme, Zahlungsplan, Zufahrtsregeln — dieselben Angaben ziehen sich durch alle Dokumente |
+| Ablage | `<out>/<Projektnummer>/` mit `_index.csv` je Projekt (Dokument, Typ, Titel, Datum, Verfasser, Betrag, Seiten) |
+| Optionen | `--projekte`, `--dokumente`, `--seed`, `--jobs`, `--flat`, `--namensschema` (mit `{projekt}`), `--verschluesseln …` |
+
+Beispielhafte Akte: `P-2026-5217-Pflegeheim_Sonnenhof/` mit 14 Dokumenten — von der Projektübersicht
+über vier Bautagebücher und zwei Besprechungsnotizen bis zu Abnahme und Abschlussbericht.
 
 ## Verschlüsselte PDFs
 

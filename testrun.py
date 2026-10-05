@@ -205,6 +205,32 @@ def s_namensschema(ordner, seed):
         f"{len(passt)}/{len(namen)} Dateien nach Muster, Nummern 1..{nummern[-1] if nummern else 0}, check.py Exit {code2}"
 
 
+def s_projekte(ordner, seed):
+    """Projektdokumentationen: je Projekt ein Ordner, alle Dokumente mit Projektnummer."""
+    ziel = os.path.join(ordner, "projekte")
+    code, aus = lauf("projekt.py", "--out", ziel, "--projekte", "2", "--dokumente", "12",
+                     "--seed", str(seed), "--quiet")
+    if code != 0:
+        return False, f"projekt.py Exit {code}: {aus.strip()[:120]}"
+    from pypdf import PdfReader
+    ordner_liste = sorted(d for d in os.listdir(ziel) if os.path.isdir(os.path.join(ziel, d)))
+    ohne_nummer, dateien, geprueft = [], 0, 0
+    for p_ordner in ordner_liste:
+        pfad = os.path.join(ziel, p_ordner)
+        pdfs = [f for f in os.listdir(pfad) if f.lower().endswith(".pdf")]
+        dateien += len(pdfs)
+        for f in pdfs:
+            text = " ".join("".join((pg.extract_text() or "") for pg in
+                                    PdfReader(os.path.join(pfad, f)).pages).split())
+            if p_ordner not in text:
+                ohne_nummer.append(f)
+        if lauf("check.py", pfad)[0] == 0:
+            geprueft += 1
+    return (len(ordner_liste) == 2 and dateien == 24 and not ohne_nummer and geprueft == 2), \
+        (f"{len(ordner_liste)} Projekte, {dateien} Dokumente, check.py fehlerfrei in {geprueft} Ordnern, "
+         f"ohne Projektnummer: {len(ohne_nummer)}")
+
+
 def s_dateien_verschluesselt(ordner, seed):
     """Verschlüsselte PDFs: prüfbar nur mit Passwort, entsperrbare Kopien."""
     import io
@@ -306,6 +332,7 @@ def main():
         ("Mails: smtp-Pfad gegen Sink (Absender, Envelope, Anhang)", s_mails_smtp_pfad),
         ("Mails: --document-today, 10 Stück", s_mails_dokument_heute),
         ("Dateien: Namensschema okiscan*.pdf", s_namensschema),
+        ("Projektdokumentation: 2 Projekte mit je 12 Dokumenten", s_projekte),
         ("Dateien: verschlüsselt (Passwort, Rechte, Entsperren)", s_dateien_verschluesselt),
         ("Mails: Datum im Kopf (jetzt vs. --date-from-document)", s_mails_datum),
         ("Mails: verschlüsselter Anhang", s_mails_verschluesselt),

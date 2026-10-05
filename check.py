@@ -144,7 +144,7 @@ def main():
     else:
         print(f"Ordner: {len(ordner)} | kleinster: {min(ordner.items(), key=lambda x: x[1])} "
               f"| größter: {max(ordner.items(), key=lambda x: x[1])}")
-    jahre = collections.Counter(r["ordner"][:4] for r in rows) if rows else \
+    jahre = collections.Counter(r.get("ordner", "")[:4] for r in rows) if rows else \
         collections.Counter(o[:4] for o in ordner if o[:4].isdigit())
     if jahre:
         print("Dokumente je Jahr:", dict(sorted(jahre.items())))

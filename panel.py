@@ -229,6 +229,31 @@ def a_testlauf(p):
     return argv, f"Kompletter Testlauf{' inkl. echter Testmail' if flag(p.get('live')) else ' ohne echten Versand'}"
 
 
+def a_projekt(p):
+    ziel = pfad(p.get("ordner"), "Zielordner", STANDARD_ZIEL)
+    projekte = zahl(p.get("projekte"), "Anzahl Projekte", 1, 200, 1)
+    dokumente = zahl(p.get("dokumente"), "Dokumente je Projekt", 3, 200, 15)
+    seed = zahl(p.get("seed"), "Seed", 0, 2 ** 31 - 1, 20260927)
+    jobs = zahl(p.get("jobs"), "Parallelprozesse", 1, 64, max(1, (os.cpu_count() or 4) - 2))
+    os.makedirs(ziel, exist_ok=True)
+    argv = [PY, "projekt.py", "--out", ziel, "--projekte", str(projekte), "--dokumente", str(dokumente),
+            "--seed", str(seed), "--jobs", str(jobs)]
+    if flag(p.get("flat")):
+        argv.append("--flat")
+    schema = (p.get("schema") or "").strip()
+    if schema:
+        argv += ["--namensschema", schema]
+    if flag(p.get("ver")):
+        pw = (p.get("pw") or "").strip()
+        if not pw:
+            raise ValueError("Verschlüsselung: bitte ein Passwort angeben")
+        argv += ["--verschluesseln", pw,
+                 "--verschluesseln-rechte", auswahl(p.get("rechte"), "Rechte",
+                                                    ["drucken", "alles", "nichts"], "drucken")]
+    return argv, (f"{projekte} Projekt(e) mit je {dokumente} Dokumenten nach {ziel}"
+                  + (", verschlüsselt" if flag(p.get("ver")) else ""))
+
+
 def a_entsperren(p):
     quelle = pfad(p.get("ordner"), "Ordner", STANDARD_ZIEL, muss_existieren=True)
     pw = (p.get("pw") or "").strip()
@@ -250,6 +275,7 @@ AKTIONEN = {
     "sink": a_sink,
     "testlauf": a_testlauf,
     "entsperren": a_entsperren,
+    "projekt": a_projekt,
 }
 
 

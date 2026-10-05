@@ -174,6 +174,30 @@
   </section>
 
   <section>
+    <h2>Projektdokumentation erzeugen</h2>
+    <div class="felder">
+      <div><label for="j-ordner">Zielordner</label><input id="j-ordner" placeholder="Ordner aus panel.py"></div>
+      <div><label for="j-projekte">Anzahl Projekte</label><input id="j-projekte" type="number" value="1"></div>
+      <div><label for="j-dokumente">Dokumente je Projekt</label><input id="j-dokumente" type="number" value="15"></div>
+      <div><label for="j-seed">Seed</label><input id="j-seed" type="number" value="20260927"></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="j-flat"><label for="j-flat" style="margin:0">ohne
+          Projekt-Unterordner</label></div></div>
+      <div><label>&nbsp;</label>
+        <div class="schalter"><input type="checkbox" id="j-ver"><label for="j-ver" style="margin:0">PDFs
+          verschlüsseln</label></div></div>
+      <div><label for="j-pw">Passwort für PDFs</label><input id="j-pw" type="password"></div>
+      <div><label for="j-schema">Dateinamenschema</label><input id="j-schema" placeholder="{projekt}_{typ}_{datum}.pdf"></div>
+    </div>
+    <div class="knopfreihe">
+      <button class="haupt" data-aktion="projekt" data-form="j-">Projekt erzeugen</button>
+      <span class="hinweis">Je Projekt: Projektübersicht, Skizze, Terminplan, Bautagebuch, Notizen,
+        Lieferscheine, Aufmaß, Mängelliste, Abnahme, Abschlussbericht …</span>
+    </div>
+    <div class="hinweis" id="j-fehler"></div>
+  </section>
+
+  <section>
     <h2>Verschlüsselte PDFs entsperren</h2>
     <div class="felder">
       <div><label for="u-ordner">Ordner mit den PDFs</label><input id="u-ordner" placeholder="Ordner aus panel.py"></div>
@@ -204,7 +228,8 @@ const $ = (id) => document.getElementById(id);
 const FELDER = ["d-ordner","d-count","d-seed","d-jobs","d-layout","d-datum","d-index","d-ver","d-pw","d-rechte","d-schema",
                 "m-count","m-seed","m-transport","m-datum","m-mailordner","m-dokument-heute",
                 "m-ver","m-pw","m-rechte","p-was","p-anzahl","t-ordner","t-sink","t-live","t-keep",
-                "u-ordner","u-pw","u-ziel"];
+                "u-ordner","u-pw","u-ziel",
+                "j-ordner","j-projekte","j-dokumente","j-seed","j-flat","j-ver","j-pw","j-schema"];
 let laeuft = false;
 
 FELDER.forEach((id) => {
@@ -236,6 +261,11 @@ function parameter(aktion, formPraefix, nur) {
     ver: $(formPraefix + "ver").checked, pw: nimm("pw"), rechte: nimm("rechte") };
   if (aktion === "mail_check") return { was: nimm("was") };
   if (aktion === "postfach") return { anzahl: nimm("anzahl") };
+  if (aktion === "projekt") return { ordner: nimm("ordner"), projekte: nimm("projekte"),
+                                     dokumente: nimm("dokumente"), seed: nimm("seed"),
+                                     jobs: "4", flat: $(formPraefix + "flat").checked,
+                                     ver: $(formPraefix + "ver").checked, pw: nimm("pw"),
+                                     rechte: "drucken", schema: nimm("schema") };
   if (aktion === "entsperren") return { ordner: ($("u-ordner").value.trim() || $("d-ordner").value.trim()),
                                         pw: $("u-pw").value.trim(), ziel: $("u-ziel").value.trim() };
   if (aktion === "sink") return { sekunden: $("t-sink").value.trim(),
